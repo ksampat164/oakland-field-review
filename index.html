@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Oakland AC field review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{
+  --bg:#E9ECE8; --surface:#F7F8F6; --surface-2:#DFE3DE; --ink:#1B2220; --ink-2:#4A5551; --line:#C3C9C4;
+  --accent:#E2560B; --accent-ink:#FFFFFF; --map-bg:#D9DDD8; --ctx:#A7AEA9; --ctx-label:#56605C;
+  --st-none:#56636B; --st-prog:#2563C9; --st-done:#17845A; --flag-bg:#FFF1C7; --flag-ink:#5A4300;
+  --sev-L:#2C7A4B; --sev-M:#B7791F; --sev-H:#B42318;
+  --font:"Barlow", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-cond:"Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  color-scheme: light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#151918; --surface:#1E2422; --surface-2:#2A312E; --ink:#ECEFEC; --ink-2:#AAB3AF; --line:#3A423F;
+    --accent:#FF7A33; --accent-ink:#1B1006; --map-bg:#1A1F1D; --ctx:#4C5552; --ctx-label:#9AA49F;
+    --st-none:#8E9AA1; --st-prog:#5E9BFF; --st-done:#3FC488; --flag-bg:#3A3112; --flag-ink:#F3DE98;
+    --sev-L:#4CC27F; --sev-M:#E8AE45; --sev-H:#FF6B5E;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#151918; --surface:#1E2422; --surface-2:#2A312E; --ink:#ECEFEC; --ink-2:#AAB3AF; --line:#3A423F;
+  --accent:#FF7A33; --accent-ink:#1B1006; --map-bg:#1A1F1D; --ctx:#4C5552; --ctx-label:#9AA49F;
+  --st-none:#8E9AA1; --st-prog:#5E9BFF; --st-done:#3FC488; --flag-bg:#3A3112; --flag-ink:#F3DE98;
+  --sev-L:#4CC27F; --sev-M:#E8AE45; --sev-H:#FF6B5E;
+  color-scheme: dark;
+}
+html{height:100%; scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0; height:100%; display:flex; flex-direction:column; background:var(--bg); color:var(--ink); font-family:var(--font); font-size:16px; line-height:1.4; -webkit-text-size-adjust:100%}
+button,input,textarea{font:inherit; color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+
+/* Top bar */
+.bar{background:var(--surface); border-bottom:1px solid var(--line); padding:10px 12px 8px; display:flex; flex-direction:column; gap:8px; z-index:1100}
+.bar-row{display:flex; align-items:center; gap:10px}
+.title{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; font-family:var(--font-cond); font-weight:700; font-size:22px; letter-spacing:.2px; margin:0; line-height:1.1}
+.progress{font-size:14px; color:var(--ink-2); margin-left:auto; white-space:nowrap}
+.progress b{color:var(--ink); font-weight:700}
+.meter{height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden}
+.meter i{display:block; height:100%; background:var(--st-done); width:0; transition:width .3s}
+.tabs{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:1px solid var(--line); background:transparent; border-radius:20px; padding:7px 14px; min-height:38px; font-weight:600; font-size:15px; white-space:nowrap}
+.tab[aria-pressed="true"]{background:var(--ink); color:var(--surface); border-color:var(--ink)}
+.tab small{font-weight:500; opacity:.75; margin-left:4px}
+.iconbtn{border:1px solid var(--line); background:var(--surface); border-radius:10px; min-width:44px; min-height:44px; padding:0 12px; font-weight:600; font-size:15px; display:inline-flex; align-items:center; justify-content:center; gap:6px}
+
+/* Map */
+main{position:relative; flex:1; min-height:0; display:flex}
+#map{flex:1; min-width:0; background:var(--map-bg)}
+.leaflet-container{background:var(--map-bg); font-family:var(--font)}
+.leaflet-bar a,.leaflet-bar a:hover{background:var(--surface); color:var(--ink); border-bottom-color:var(--line); width:40px; height:40px; line-height:40px}
+.leaflet-bar{border:1px solid var(--line)!important; box-shadow:none!important}
+.leaflet-control-attribution{background:color-mix(in srgb, var(--surface) 80%, transparent)!important; color:var(--ink-2)!important; font-size:10px}
+.ctx-label{font-size:11px; font-weight:600; color:var(--ctx-label); white-space:nowrap; text-shadow:0 0 3px var(--map-bg),0 0 3px var(--map-bg),0 0 2px var(--map-bg); pointer-events:none; transform:translate(-50%,-50%)}
+.fabs{position:absolute; right:10px; bottom:calc(14px + env(safe-area-inset-bottom,0px)); z-index:900; display:flex; flex-direction:column; gap:8px}
+.fab{width:48px; height:48px; border-radius:12px; border:1px solid var(--line); background:var(--surface); display:flex; align-items:center; justify-content:center}
+.fab svg{width:22px; height:22px}
+.fab[aria-pressed="true"]{background:var(--ink); color:var(--surface)}
+.legend{position:absolute; left:10px; bottom:calc(14px + env(safe-area-inset-bottom,0px)); z-index:900; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:8px 10px; font-size:13px; display:flex; flex-direction:column; gap:3px}
+.legend button{border:0; background:none; padding:0 0 4px; font-weight:700; font-size:13px; text-align:left; text-decoration:underline; text-underline-offset:3px}
+.bm{display:flex; gap:4px; margin-bottom:6px}
+.bm button{flex:1; border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:6px 8px; min-height:36px; font-weight:600; font-size:13px; text-decoration:none}
+.bm button[aria-pressed="true"]{background:var(--ink); color:var(--surface); border-color:var(--ink)}
+.lg{display:flex; align-items:center; gap:7px}
+.lg i{width:18px; height:5px; border-radius:3px; display:inline-block}
+
+/* Segment sheet */
+.sheet{position:fixed; left:0; right:0; bottom:0; height:64%; background:var(--surface); border-top:1px solid var(--line); border-radius:16px 16px 0 0; z-index:1200; display:flex; flex-direction:column; transform:translateY(105%); transition:transform .22s ease; box-shadow:0 -6px 24px rgba(0,0,0,.18)}
+.sheet.open{transform:none}
+.sheet.tall{height:calc(100% - 40px - env(safe-area-inset-top,0px))}
+.grab{display:flex; justify-content:center; padding:7px 0 0; border:0; background:none; width:100%}
+.grab i{width:44px; height:5px; border-radius:3px; background:var(--line); display:block}
+.sh-head{padding:4px 14px 10px; display:flex; gap:8px; align-items:flex-start; border-bottom:1px solid var(--line)}
+.sh-title{flex:1; min-width:0}
+.sh-title h2{font-family:var(--font-cond); font-size:26px; line-height:1.05; margin:0}
+.sh-title p{margin:2px 0 0; color:var(--ink-2); font-size:15px}
+.status-pill{display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; margin-top:6px}
+.status-pill i{width:10px; height:10px; border-radius:50%}
+.sh-nav{display:flex; gap:6px}
+.sh-body{flex:1; overflow-y:auto; padding:12px 14px calc(18px + env(safe-area-inset-bottom,0px)); -webkit-overflow-scrolling:touch}
+.facts{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-bottom:10px}
+.facts div{background:var(--surface); padding:6px 8px}
+.facts dt{font-size:12px; color:var(--ink-2)}
+.facts dd{margin:0; font-weight:700; font-size:15px; font-variant-numeric:tabular-nums}
+.flag{background:var(--flag-bg); color:var(--flag-ink); border-radius:10px; padding:9px 11px; font-size:14px; margin-bottom:10px}
+.dirs{display:inline-flex; align-items:center; gap:6px; font-weight:600; color:var(--ink); text-decoration:underline; text-underline-offset:3px; margin-bottom:6px; min-height:36px}
+section.grp{margin-top:16px}
+section.grp h3{font-family:var(--font-cond); font-size:20px; margin:0 0 8px; display:flex; align-items:baseline; gap:10px}
+section.grp h3 span{font-family:var(--font); font-size:14px; font-weight:500; color:var(--ink-2)}
+
+.dz{border:1px solid var(--line); border-radius:12px; margin-bottom:8px; overflow:hidden; background:var(--surface)}
+.dz.on{border-color:var(--ink)}
+.dz-toggle{display:flex; align-items:center; gap:10px; width:100%; border:0; background:none; padding:10px 12px; min-height:52px; text-align:left}
+.code{flex:none; width:34px; height:34px; border-radius:8px; border:2px solid var(--ink); display:flex; align-items:center; justify-content:center; font-family:var(--font-cond); font-weight:700; font-size:18px}
+.dz.on .code{background:var(--ink); color:var(--surface)}
+.dz-name{flex:1; font-weight:600; line-height:1.2}
+.dz-sum{font-size:14px; font-weight:700; white-space:nowrap}
+.dz-sum.L{color:var(--sev-L)} .dz-sum.M{color:var(--sev-M)} .dz-sum.H{color:var(--sev-H)}
+.dz-body{padding:2px 12px 12px; display:flex; flex-direction:column; gap:10px}
+.lbl{font-size:13px; color:var(--ink-2); margin-bottom:4px}
+.sev{display:grid; grid-template-columns:repeat(3,1fr); gap:6px}
+.sev button{min-height:48px; border-radius:10px; border:2px solid var(--line); background:var(--surface); font-family:var(--font-cond); font-weight:700; font-size:22px}
+.sev button[aria-pressed="true"][data-v="L"]{background:var(--sev-L); border-color:var(--sev-L); color:#fff}
+.sev button[aria-pressed="true"][data-v="M"]{background:var(--sev-M); border-color:var(--sev-M); color:#fff}
+.sev button[aria-pressed="true"][data-v="H"]{background:var(--sev-H); border-color:var(--sev-H); color:#fff}
+.sev small{display:block; font-family:var(--font); font-size:11px; font-weight:500; margin-top:-3px}
+.chips{display:flex; flex-wrap:wrap; gap:6px}
+.chip{border:1.5px solid var(--line); background:var(--surface); border-radius:22px; padding:8px 14px; min-height:42px; font-weight:600; font-size:15px}
+.chip[aria-pressed="true"]{background:var(--ink); color:var(--surface); border-color:var(--ink)}
+.qty{display:flex; align-items:center; gap:8px}
+.qty input{width:120px; min-height:44px; border:1.5px solid var(--line); border-radius:10px; padding:6px 10px; background:var(--surface); font-variant-numeric:tabular-nums}
+.linkbtn{border:0; background:none; padding:6px 0; text-decoration:underline; text-underline-offset:3px; color:var(--ink-2); font-size:14px; align-self:flex-start; min-height:36px}
+.subchips{margin:8px 0 0 14px; padding-left:12px; border-left:3px solid var(--line)}
+.steppers{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.stepper{border:1px solid var(--line); border-radius:12px; padding:8px 10px}
+.stepper .row{display:flex; align-items:center; justify-content:space-between; gap:6px}
+.stepper button{width:44px; height:44px; border-radius:10px; border:1.5px solid var(--line); background:var(--surface); font-size:24px; font-weight:600; line-height:1}
+.stepper output{font-family:var(--font-cond); font-size:28px; font-weight:700; min-width:2ch; text-align:center; font-variant-numeric:tabular-nums}
+textarea{width:100%; min-height:88px; border:1.5px solid var(--line); border-radius:10px; padding:10px; background:var(--surface); resize:vertical}
+.donebtn{width:100%; min-height:56px; border-radius:12px; border:0; background:var(--accent); color:var(--accent-ink); font-weight:700; font-size:18px; margin-top:18px}
+.donebtn.is-done{background:var(--st-done); color:#fff}
+.saved{font-size:13px; color:var(--ink-2); text-align:center; margin-top:8px; min-height:18px}
+
+/* List + menu overlays */
+.overlay{position:fixed; inset:0; z-index:1300; background:var(--surface); display:none; flex-direction:column; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px)}
+.overlay.open{display:flex}
+.ov-head{display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--line)}
+.ov-head h2{font-family:var(--font-cond); font-size:24px; margin:0; flex:1}
+.ov-body{flex:1; overflow-y:auto; padding:6px 14px 20px}
+.cl-h{font-family:var(--font-cond); font-size:20px; margin:16px 0 6px; display:flex; justify-content:space-between; align-items:baseline}
+.cl-h span{font-family:var(--font); font-size:14px; color:var(--ink-2); font-weight:500}
+.li{display:flex; gap:10px; align-items:center; width:100%; text-align:left; border:0; border-bottom:1px solid var(--line); background:none; padding:10px 2px; min-height:56px}
+.li i{flex:none; width:12px; height:12px; border-radius:50%}
+.li .t{flex:1; min-width:0}
+.li .t b{display:block}
+.li .t span{font-size:14px; color:var(--ink-2)}
+.li .s{font-size:13px; font-weight:700; text-align:right; max-width:40%}
+.menu-item{display:block; width:100%; text-align:left; border:1px solid var(--line); background:var(--surface); border-radius:12px; padding:14px; margin-top:10px; min-height:56px}
+.menu-item b{display:block; font-size:17px}
+.menu-item span{font-size:14px; color:var(--ink-2)}
+.menu-item.danger b{color:var(--sev-H)}
+.note{font-size:14px; color:var(--ink-2); margin-top:14px; line-height:1.45}
+.toast{position:fixed; left:50%; bottom:calc(24px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%) translateY(20px); background:var(--ink); color:var(--surface); padding:10px 16px; border-radius:10px; font-weight:600; z-index:1500; opacity:0; transition:.2s; pointer-events:none; max-width:90vw; text-align:center}
+.toast.show{opacity:1; transform:translateX(-50%)}
+
+@media (min-width: 900px){
+  .sheet{left:auto; top:0; width:440px; height:auto; border-radius:0; border-top:0; border-left:1px solid var(--line); transform:translateX(105%); position:absolute; box-shadow:none}
+  .sheet.tall{height:auto}
+  .grab{display:none}
+  main.with-sheet #map{margin-right:440px}
+  main.with-sheet .fabs{right:450px}
+  .sh-head{padding-top:14px}
+}
+@media (prefers-reduced-motion: reduce){ .sheet,.toast,.meter i{transition:none} }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="bar-row">
+    <h1 class="title">Oakland AC field review</h1>
+    <div class="progress" id="progress"></div>
+  </div>
+  <div class="meter" aria-hidden="true"><i id="meter"></i></div>
+  <div class="bar-row">
+    <div class="tabs" id="tabs" role="group" aria-label="Cluster"></div>
+    <button class="iconbtn" id="btnList" aria-label="Segment list">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>List</button>
+    <button class="iconbtn" id="btnMenu">Export</button>
+  </div>
+</header>
+
+<main id="main">
+  <div id="map" role="application" aria-label="Map of review segments"></div>
+  <div class="legend" id="legend"></div>
+  <div class="fabs">
+    <button class="fab" id="btnLocate" aria-label="Show my location" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+    <button class="fab" id="btnFit" aria-label="Zoom to cluster">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  </div>
+
+  <aside class="sheet" id="sheet" aria-label="Segment review">
+    <button class="grab" id="grab" aria-label="Expand or shrink panel"><i></i></button>
+    <div class="sh-head">
+      <div class="sh-title">
+        <h2 id="shStreet"></h2>
+        <p id="shLimits"></p>
+        <div class="status-pill" id="shStatus"></div>
+      </div>
+      <div class="sh-nav">
+        <button class="iconbtn" id="btnPrev" aria-label="Previous segment">‹</button>
+        <button class="iconbtn" id="btnNext" aria-label="Next segment">›</button>
+        <button class="iconbtn" id="btnClose" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <div class="sh-body" id="shBody"></div>
+  </aside>
+</main>
+
+<div class="overlay" id="listOv" role="dialog" aria-label="Segment list">
+  <div class="ov-head"><h2>Segments</h2><button class="iconbtn" data-close="listOv">Close</button></div>
+  <div class="ov-body" id="listBody"></div>
+</div>
+
+<div class="overlay" id="menuOv" role="dialog" aria-label="Export and backup">
+  <div class="ov-head"><h2>Export and backup</h2><button class="iconbtn" data-close="menuOv">Close</button></div>
+  <div class="ov-body">
+    <button class="menu-item" id="mXlsx"><b>Download Excel workbook</b><span>One row per segment, your sheet’s columns plus every review field.</span></button>
+    <button class="menu-item" id="mCopy"><b>Copy table for Excel</b><span>Puts the same table on the clipboard to paste into a sheet.</span></button>
+    <button class="menu-item" id="mBackup"><b>Save a backup file</b><span>A .json file of all reviews, to restore on this or another device.</span></button>
+    <button class="menu-item" id="mRestore"><b>Restore from a backup file</b><span>Replaces the reviews on this device with the file’s contents.</span></button>
+    <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    <button class="menu-item danger" id="mClear"><b>Clear all reviews on this device</b><span>Asks before deleting. Save a backup first.</span></button>
+    <p class="note">Reviews save automatically in this browser as you tap. They stay on this phone only, so export or back up at the end of each field day. Clearing the browser’s site data deletes them.</p>
+    <p class="note">The road map needs a data connection; the segments and your reviews work without one once the page has loaded.</p>
+    <p class="note">Segment lines come from OakDOT’s Paving_PCI layer (PCI 2024 from the City’s latest survey). Rows the City layer couldn’t match exactly carry a yellow note on the segment.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const DATA = {"segs":[{"id":"r3","row":3,"cluster":"Outlook","sid":"0286","sec":"003","street":"68 AV","frm":"MACARTHUR BV","to":"FOOTHILL","miles":0.10227272727272728,"len":540.0,"wid":30.0,"area":16200.0,"fc":"R","ln":"2","pci21":"97","adaC":"4","adaN":null,"gis":"0286-003","pci24":78,"flag":"Sheet limits say MacArthur\u2192Foothill (540 ft), but section 0286-003 is MacArthur\u2192Outlook (1,112 ft). Whole section shown \u2014 confirm limits.","drawn":1112,"coords":[[-122.176464,37.771241],[-122.174827,37.772296],[-122.174733,37.772357],[-122.174593,37.77252],[-122.173807,37.77341]],"gtype":"LineString"},{"id":"r4","row":4,"cluster":"Outlook","sid":"1400","sec":"001","street":"LAIRD AV","frm":"68 AV","to":"NORTH END","miles":0.09308333333333334,"len":491.48,"wid":30.0,"area":13200.0,"fc":"R","ln":"2","pci21":"61","adaC":"2","adaN":null,"gis":"1400-001","pci24":49,"flag":null,"drawn":491,"coords":[[-122.17566,37.77357],[-122.174593,37.77252]],"gtype":"LineString"},{"id":"r5","row":5,"cluster":"Outlook","sid":"1738","sec":"002","street":"OUTLOOK AV","frm":"68 AV","to":"69 AV","miles":0.08522727272727272,"len":450.0,"wid":24.0,"area":10800.0,"fc":"R","ln":"2","pci21":"48","adaC":"4","adaN":null,"gis":"1738-002","pci24":41,"flag":null,"drawn":479,"coords":[[-122.173807,37.77341],[-122.173532,37.772953],[-122.173148,37.772314],[-122.173117,37.772265],[-122.173078,37.772231]],"gtype":"LineString"},{"id":"r6","row":6,"cluster":"Outlook","sid":"1738","sec":"003","street":"OUTLOOK AV","frm":"69 AV","to":"73 AV","miles":0.20075757575757575,"len":1060.0,"wid":24.0,"area":25440.0,"fc":"R","ln":"2","pci21":"64","adaC":"4","adaN":null,"gis":"1738-003","pci24":57,"flag":null,"drawn":1059,"coords":[[-122.173078,37.772231],[-122.172467,37.771908],[-122.172215,37.771775],[-122.172166,37.771749],[-122.172117,37.771725],[-122.172065,37.771703],[-122.172012,37.771682],[-122.171958,37.771663],[-122.171904,37.771646],[-122.171848,37.771631],[-122.171793,37.771617],[-122.171395,37.771544],[-122.171334,37.77153],[-122.171275,37.771514],[-122.171217,37.771496],[-122.17116,37.771477],[-122.171102,37.771456],[-122.171046,37.771433],[-122.170992,37.771409],[-122.17094,37.771382],[-122.170887,37.771355],[-122.170838,37.771325],[-122.170789,37.771294],[-122.170741,37.771261],[-122.169989,37.77074]],"gtype":"LineString"},{"id":"r7","row":7,"cluster":"Outlook","sid":"0287","sec":"001","street":"69 AV","frm":"MACARTHUR BV","to":"OUTLOOK AV","miles":0.16098484848484848,"len":850.0,"wid":30.0,"area":25500.0,"fc":"R","ln":"2","pci21":"45","adaC":"2","adaN":"2","gis":"0287-001","pci24":29,"flag":null,"drawn":869,"coords":[[-122.175433,37.770746],[-122.174075,37.77162],[-122.17351,37.771966],[-122.173078,37.772231]],"gtype":"LineString"},{"id":"r8","row":8,"cluster":"Outlook","sid":"0300","sec":"400","street":"73 AV","frm":"MACARTHUR BV","to":"OUTLOOK AV","miles":0.1588409090909091,"len":838.68,"wid":28.0,"area":22764.0,"fc":"A","ln":"2","pci21":"100","adaC":"3","adaN":"5","gis":"0300-400","pci24":100,"flag":null,"drawn":839,"coords":[[-122.172038,37.769121],[-122.171616,37.769373],[-122.171541,37.769419],[-122.171468,37.769467],[-122.171394,37.769516],[-122.171324,37.769566],[-122.171255,37.769617],[-122.171185,37.769669],[-122.171119,37.769722],[-122.171052,37.769776],[-122.170988,37.769831],[-122.170923,37.769888],[-122.169989,37.77074]],"gtype":"LineString"},{"id":"r9","row":9,"cluster":"Outlook","sid":"1738","sec":"002","street":"OUTLOOK AV","frm":"64 AV","to":"68 AV","miles":0.25757575757575757,"len":1360.0,"wid":24.0,"area":32640.0,"fc":"R","ln":"2","pci21":"48","adaC":null,"adaN":"9","gis":"1738-002","pci24":41,"flag":null,"drawn":1392,"coords":[[-122.176911,37.776149],[-122.176614,37.775873],[-122.175481,37.775182],[-122.175317,37.775086],[-122.174707,37.774714],[-122.174316,37.77448],[-122.174264,37.774442],[-122.1742,37.774387],[-122.174144,37.774328],[-122.174095,37.774264],[-122.174055,37.774196],[-122.174023,37.774126],[-122.174001,37.774054],[-122.173807,37.77341]],"gtype":"LineString"},{"id":"r10","row":10,"cluster":"Outlook","sid":"1738","sec":"003","street":"OUTLOOK AV","frm":"73 AV","to":"75 AV","miles":0.06628787878787878,"len":350.0,"wid":24.0,"area":8400.0,"fc":"R","ln":"2","pci21":"64","adaC":null,"adaN":"4","gis":"1738-003","pci24":57,"flag":null,"drawn":388,"coords":[[-122.169989,37.77074],[-122.169063,37.770112],[-122.168975,37.770043]],"gtype":"LineString"},{"id":"r11","row":11,"cluster":"Outlook","sid":"0287","sec":"001","street":"69 AV","frm":"FOOTHILL BV","to":"MACARTHUR","miles":0.07102272727272728,"len":375.0,"wid":30.0,"area":11250.0,"fc":"R","ln":"2","pci21":"45","adaC":"5","adaN":null,"gis":"0287-001","pci24":29,"flag":"MacArthur cut point interpolated between the 68 Av and 73 Av intersections.","drawn":452,"coords":[[-122.175968,37.769638],[-122.175776,37.770463],[-122.175759,37.770515],[-122.175704,37.770573],[-122.175438,37.770743],[-122.175433,37.770746]],"gtype":"LineString"},{"id":"r12","row":12,"cluster":"Outlook","sid":null,"sec":null,"street":"72 AV","frm":"LACEY","to":"MACARTHUR","miles":0.08522727272727272,"len":450.0,"wid":30.0,"area":13500.0,"fc":"R","ln":"2","pci21":null,"adaC":"1","adaN":"5","gis":"0297-003","pci24":57,"flag":"No ID in sheet, and Lacey isn't in the City layer. Drawn as the first 450 ft of 0297-003 (72 Av, MacArthur\u2192Outlook) from MacArthur \u2014 verify the Lacey limit in the field.","drawn":450,"coords":[[-122.173192,37.769661],[-122.172125,37.770356],[-122.172096,37.770375],[-122.172028,37.770421],[-122.17199,37.770446]],"gtype":"LineString"},{"id":"r14","row":14,"cluster":"Marlow","sid":"1550","sec":"003","street":"MARLOW DR","frm":"COVINGTON ST","to":"BROOKFIELD AVE","miles":0.5861742424242424,"len":3095.0,"wid":28.0,"area":86660.0,"fc":"R","ln":"2","pci21":"22","adaC":"4","adaN":"6","gis":"1550-003","pci24":16,"flag":null,"drawn":3119,"coords":[[-122.138773,37.736876],[-122.138848,37.73704],[-122.138872,37.737107],[-122.13889,37.737176],[-122.138896,37.737243],[-122.138887,37.737304],[-122.138869,37.737363],[-122.138841,37.73742],[-122.138813,37.73746],[-122.138782,37.737498],[-122.138745,37.737534],[-122.138705,37.737566],[-122.13866,37.737596],[-122.138597,37.737618],[-122.138533,37.737639],[-122.138467,37.737658],[-122.138401,37.737674],[-122.138325,37.737687],[-122.138249,37.737698],[-122.138172,37.737708],[-122.138096,37.737717],[-122.13802,37.737725],[-122.137942,37.737732],[-122.137866,37.737737],[-122.137789,37.737741],[-122.137706,37.73774],[-122.137624,37.737738],[-122.137543,37.737733],[-122.13746,37.737728],[-122.137378,37.73772],[-122.137297,37.737711],[-122.137215,37.7377],[-122.137134,37.737688],[-122.137061,37.737674],[-122.136988,37.73766],[-122.136913,37.737644],[-122.136842,37.737627],[-122.136769,37.737608],[-122.136697,37.737589],[-122.136628,37.737567],[-122.136558,37.737545],[-122.136488,37.737521],[-122.13642,37.737496],[-122.136361,37.737473],[-122.136302,37.737448],[-122.136244,37.737422],[-122.136188,37.737395],[-122.136132,37.737367],[-122.136078,37.737338],[-122.136024,37.737307],[-122.135971,37.737276],[-122.135917,37.737243],[-122.135862,37.737208],[-122.135808,37.737173],[-122.135757,37.737137],[-122.135704,37.7371],[-122.135655,37.737063],[-122.135606,37.737024],[-122.135558,37.736985],[-122.135511,37.736945],[-122.135465,37.736904],[-122.135431,37.736868],[-122.135398,37.736832],[-122.135364,37.736795],[-122.135332,37.736757],[-122.135278,37.736717],[-122.135236,37.736663],[-122.135191,37.736601],[-122.135151,37.736542],[-122.135122,37.736499],[-122.135097,37.736455],[-122.135074,37.73641],[-122.135052,37.736364],[-122.135032,37.736318],[-122.135013,37.736272],[-122.134997,37.736225],[-122.134984,37.736178],[-122.134972,37.736131],[-122.134959,37.736075],[-122.134947,37.736018],[-122.134941,37.735961],[-122.134934,37.735905],[-122.134931,37.735848],[-122.134932,37.73579],[-122.134934,37.735733],[-122.13494,37.735676],[-122.134947,37.735619],[-122.134958,37.735563],[-122.134971,37.735506],[-122.134987,37.735451],[-122.135005,37.735395],[-122.135026,37.73534],[-122.135049,37.735288],[-122.135072,37.735235],[-122.135098,37.735184],[-122.135127,37.735133],[-122.135157,37.735083],[-122.135188,37.735033],[-122.135222,37.734984],[-122.135257,37.734936],[-122.135657,37.734391],[-122.135934,37.734012],[-122.136427,37.733315],[-122.136476,37.733252],[-122.136523,37.733189],[-122.136571,37.733126],[-122.136622,37.733064],[-122.137134,37.732518]],"gtype":"LineString"},{"id":"r15","row":15,"cluster":"Marlow","sid":"1865","sec":"003","street":"REVERE AV","frm":"MARLOW DR","to":"NORTH END","miles":0.38258522727272726,"len":2020.05,"wid":28.0,"area":57436.0,"fc":"R","ln":"2","pci21":"70","adaC":"10","adaN":null,"gis":"1865-003","pci24":65,"flag":null,"drawn":2020,"coords":[[-122.135278,37.736717],[-122.135224,37.73674],[-122.13518,37.736761],[-122.135111,37.736779],[-122.135021,37.736781],[-122.134964,37.736773],[-122.13491,37.736759],[-122.134858,37.736739],[-122.134792,37.736703],[-122.134434,37.736488],[-122.134361,37.736452],[-122.134285,37.736419],[-122.134226,37.736398],[-122.134161,37.736379],[-122.134097,37.73636],[-122.134033,37.73634],[-122.133953,37.736312],[-122.13389,37.736279],[-122.133832,37.736239],[-122.133783,37.736193],[-122.133741,37.736143],[-122.133716,37.736102],[-122.133696,37.736059],[-122.133681,37.736016],[-122.133673,37.735971],[-122.133669,37.735925],[-122.133672,37.73588],[-122.133696,37.735593],[-122.13369,37.73555],[-122.133676,37.735494],[-122.133659,37.735453],[-122.133636,37.735414],[-122.133609,37.735377],[-122.133577,37.735342],[-122.133528,37.7353],[-122.133472,37.735264],[-122.13341,37.735234],[-122.133345,37.735211],[-122.133275,37.735195],[-122.132884,37.735123],[-122.13283,37.73511],[-122.132776,37.735094],[-122.132723,37.735075],[-122.132673,37.735053],[-122.132609,37.73502],[-122.132564,37.734992],[-122.132161,37.734742],[-122.132121,37.734716],[-122.132079,37.734691],[-122.132035,37.734668],[-122.131991,37.734647],[-122.131946,37.734627],[-122.131899,37.734609],[-122.131852,37.734592],[-122.131803,37.734577],[-122.131754,37.734564],[-122.131704,37.734553],[-122.131653,37.734543],[-122.131603,37.734535],[-122.131141,37.734471],[-122.13106,37.734461],[-122.131006,37.734455],[-122.130942,37.73445],[-122.130883,37.734447],[-122.130806,37.734446],[-122.130678,37.734442],[-122.130612,37.734443],[-122.130545,37.73445],[-122.130483,37.734463],[-122.130424,37.734477],[-122.130371,37.734488],[-122.130318,37.73451],[-122.130265,37.734549],[-122.130195,37.73458],[-122.13013,37.73462],[-122.130065,37.734678],[-122.13002,37.734724],[-122.129972,37.734772],[-122.129928,37.73482]],"gtype":"LineString"},{"id":"r16","row":16,"cluster":"Marlow","sid":"0768","sec":"001","street":"COVINGTON ST","frm":"BROOKFIELD AV","to":"REVERE AVE","miles":0.23674242424242425,"len":1250.0,"wid":29.0,"area":36250.0,"fc":"R","ln":"2","pci21":"16","adaC":null,"adaN":"6","gis":"0768-001","pci24":14,"flag":null,"drawn":1276,"coords":[[-122.139685,37.737307],[-122.139673,37.737088],[-122.13966,37.737039],[-122.139638,37.736998],[-122.13961,37.73696],[-122.139573,37.736926],[-122.13953,37.736897],[-122.139483,37.736874],[-122.139431,37.736858],[-122.139355,37.736846],[-122.138907,37.736854],[-122.138773,37.736876],[-122.138253,37.736987],[-122.138186,37.736999],[-122.138117,37.73701],[-122.138049,37.737019],[-122.137982,37.737027],[-122.137913,37.737033],[-122.137844,37.737037],[-122.137775,37.737039],[-122.137707,37.73704],[-122.137638,37.737038],[-122.137569,37.737036],[-122.137501,37.737031],[-122.137432,37.737025],[-122.137364,37.737017],[-122.137297,37.737007],[-122.137231,37.736996],[-122.137165,37.736983],[-122.1371,37.736968],[-122.137036,37.736951],[-122.136973,37.736932],[-122.136911,37.736912],[-122.136848,37.736889],[-122.136789,37.736866],[-122.136729,37.73684],[-122.136672,37.736813],[-122.136616,37.736786],[-122.136563,37.736758],[-122.136509,37.736729],[-122.136458,37.736698],[-122.136409,37.736667],[-122.13636,37.736633],[-122.136312,37.736599],[-122.136268,37.736562],[-122.136224,37.736525],[-122.136182,37.736487],[-122.136141,37.736447],[-122.136102,37.736407],[-122.136065,37.736365],[-122.13603,37.736323]],"gtype":"LineString"},{"id":"r17","row":17,"cluster":"Marlow","sid":"0586","sec":"001","street":"BROOKFIELD AV","frm":"MARLOW DR","to":"COVINGTON ST","miles":0.052083333333333336,"len":275.0,"wid":30.0,"area":8250.0,"fc":"R","ln":"2","pci21":"27","adaC":null,"adaN":null,"gis":"0586-001","pci24":12,"flag":null,"drawn":282,"coords":[[-122.137711,37.733127],[-122.137689,37.733082],[-122.137668,37.733037],[-122.137642,37.732993],[-122.137614,37.73295],[-122.137585,37.732907],[-122.137553,37.732866],[-122.137519,37.732825],[-122.137484,37.732786],[-122.137447,37.732748],[-122.137406,37.732711],[-122.137366,37.732675],[-122.137322,37.732641],[-122.137278,37.732608],[-122.13723,37.732576],[-122.137183,37.732546],[-122.137134,37.732518]],"gtype":"LineString"},{"id":"r18","row":18,"cluster":"Marlow","sid":null,"sec":null,"street":"MARLOW DR","frm":"FOOTHILL WAY","to":"MARLOW DR","miles":0.0,"len":null,"wid":null,"area":null,"fc":"R","ln":"2","pci21":null,"adaC":null,"adaN":null,"gis":"1550-002","pci24":31,"flag":"No ID / 0 miles in sheet. Tentatively matched to 1550-002 (Marlow Dr, Foothill Way\u2192Revere) \u2014 confirm.","drawn":658,"coords":[[-122.139416,37.734599],[-122.139337,37.734633],[-122.139281,37.734664],[-122.139228,37.734699],[-122.139192,37.734727],[-122.139144,37.734765],[-122.1391,37.734803],[-122.139056,37.734843],[-122.139016,37.734884],[-122.138977,37.734926],[-122.138938,37.734969],[-122.138903,37.735013],[-122.138869,37.735058],[-122.138844,37.735095],[-122.138822,37.735133],[-122.138801,37.735171],[-122.138782,37.73521],[-122.138764,37.73525],[-122.13875,37.73529],[-122.138737,37.735331],[-122.138727,37.735372],[-122.138718,37.735414],[-122.138712,37.735455],[-122.138707,37.735497],[-122.138705,37.735539],[-122.138712,37.735622],[-122.138716,37.735704],[-122.138719,37.735787],[-122.138719,37.73587],[-122.138718,37.735953],[-122.138712,37.736036],[-122.138707,37.736119],[-122.138699,37.736202]],"gtype":"LineString"},{"id":"r19","row":19,"cluster":"Marlow","sid":"1550","sec":"003","street":"MARLOW DR","frm":"BROOKFIELD AVE","to":"MIDDLETON ST","miles":0.08522727272727272,"len":450.0,"wid":28.0,"area":12600.0,"fc":"R","ln":"2","pci21":"22","adaC":null,"adaN":"1","gis":"1550-003","pci24":16,"flag":null,"drawn":458,"coords":[[-122.137134,37.732518],[-122.137297,37.732329],[-122.137348,37.732272],[-122.137402,37.732216],[-122.137456,37.732162],[-122.137514,37.732108],[-122.137573,37.732056],[-122.137634,37.732005],[-122.137697,37.731956],[-122.137762,37.731908],[-122.137827,37.731862],[-122.137895,37.731816],[-122.137934,37.731789],[-122.137973,37.731764],[-122.138014,37.731739],[-122.138057,37.731715],[-122.1381,37.731693],[-122.138142,37.731671],[-122.138187,37.731651],[-122.138233,37.731632]],"gtype":"LineString"},{"id":"r20","row":20,"cluster":"Marlow","sid":"1616","sec":"001","street":"MIDDLETON ST","frm":"MARLOW DR","to":"MARLOW DR","miles":0.2777215909090909,"len":1466.37,"wid":28.0,"area":39590.0,"fc":"R","ln":"2","pci21":"25","adaC":null,"adaN":"4","gis":"1616-001","pci24":11,"flag":null,"drawn":1466,"coords":[[-122.138869,37.735058],[-122.138682,37.734976],[-122.138382,37.734846],[-122.138309,37.734798],[-122.138267,37.734761],[-122.138222,37.734712],[-122.138187,37.734658],[-122.138161,37.734601],[-122.138149,37.734557],[-122.138142,37.734511],[-122.138143,37.734451],[-122.138151,37.734405],[-122.13817,37.734361],[-122.138199,37.734309],[-122.138227,37.734271],[-122.138261,37.734235],[-122.138312,37.734192],[-122.13837,37.734155],[-122.138438,37.73412],[-122.138497,37.734086],[-122.138552,37.734048],[-122.138605,37.734007],[-122.138653,37.733964],[-122.138697,37.733918],[-122.138719,37.73389],[-122.138748,37.733846],[-122.138781,37.733786],[-122.138809,37.733723],[-122.138829,37.733659],[-122.138841,37.733609],[-122.138864,37.733572],[-122.138879,37.733532],[-122.138884,37.733481],[-122.138888,37.733399],[-122.138888,37.733317],[-122.138884,37.733235],[-122.138881,37.733153],[-122.138874,37.733071],[-122.138863,37.73299],[-122.138844,37.732907],[-122.138825,37.732825],[-122.138802,37.732742],[-122.138778,37.73266],[-122.138752,37.732579],[-122.138724,37.732497],[-122.138697,37.732416],[-122.138665,37.732336],[-122.13864,37.732271],[-122.138611,37.732207],[-122.138578,37.732144],[-122.138546,37.732082],[-122.13851,37.73202],[-122.138472,37.73196],[-122.138431,37.7319],[-122.138388,37.731841],[-122.138365,37.731806],[-122.13834,37.73177],[-122.138315,37.731735],[-122.138288,37.7317],[-122.138262,37.731666],[-122.138233,37.731632]],"gtype":"LineString"},{"id":"r21","row":21,"cluster":"Marlow","sid":null,"sec":null,"street":"FOOTHILL WAY","frm":"MIDDLETON ST","to":"MIDDLETON ST","miles":0.0,"len":null,"wid":null,"area":null,"fc":null,"ln":null,"pci21":null,"adaC":null,"adaN":null,"gis":"2314-001","pci24":80,"flag":"No ID in sheet; matched by name/limits to 2314-001.","drawn":423,"coords":[[-122.138309,37.734798],[-122.13882,37.734347],[-122.138946,37.734236],[-122.138961,37.73419],[-122.138958,37.734135],[-122.138931,37.734085],[-122.138883,37.734043],[-122.138697,37.733918]],"gtype":"LineString"},{"id":"r22","row":22,"cluster":"Marlow","sid":"0586","sec":"001","street":"BROOKFIELD AV","frm":"CONINGTON ST","to":"MIDDLETON ST","miles":0.07393181818181818,"len":390.36,"wid":30.0,"area":11710.800000000001,"fc":"R","ln":"2","pci21":"27","adaC":null,"adaN":null,"gis":"0586-001","pci24":12,"flag":"Sheet says 'CONINGTON ST' \u2014 treated as Covington.","drawn":383,"coords":[[-122.138841,37.733609],[-122.138776,37.733605],[-122.138714,37.733597],[-122.138652,37.733588],[-122.138589,37.733576],[-122.138528,37.733563],[-122.138467,37.733548],[-122.138415,37.733535],[-122.138361,37.733522],[-122.138309,37.733506],[-122.138259,37.733489],[-122.138208,37.73347],[-122.138159,37.733449],[-122.138112,37.733427],[-122.138065,37.733404],[-122.138019,37.733379],[-122.137975,37.733352],[-122.137933,37.733324],[-122.137893,37.733294],[-122.137852,37.733263],[-122.137802,37.733219],[-122.137762,37.73318],[-122.137736,37.733154],[-122.137711,37.733127]],"gtype":"LineString"},{"id":"r23","row":23,"cluster":"Marlow","sid":"0768","sec":"001","street":"COVINGTON ST","frm":"REVERE AVE","to":"NORTH END","miles":0.25695454545454544,"len":1356.7199999999998,"wid":29.0,"area":39344.88,"fc":"R","ln":"2","pci21":"16","adaC":null,"adaN":null,"gis":"0768-001","pci24":14,"flag":null,"drawn":1330,"coords":[[-122.13603,37.736323],[-122.13595,37.736225],[-122.135926,37.736189],[-122.135905,37.736152],[-122.135887,37.736115],[-122.135869,37.736077],[-122.135856,37.736038],[-122.135843,37.735999],[-122.135833,37.73596],[-122.135825,37.73592],[-122.135819,37.73588],[-122.135817,37.73584],[-122.135816,37.7358],[-122.135817,37.735759],[-122.135821,37.735719],[-122.135827,37.735679],[-122.135835,37.735639],[-122.135846,37.7356],[-122.135859,37.735561],[-122.135875,37.735523],[-122.135892,37.735485],[-122.135912,37.735448],[-122.135934,37.735411],[-122.135957,37.735376],[-122.136677,37.734377],[-122.136692,37.734355],[-122.136755,37.734258],[-122.136819,37.734162],[-122.136886,37.734067],[-122.136955,37.733973],[-122.137026,37.73388],[-122.137098,37.733788],[-122.137174,37.733697],[-122.13725,37.733607],[-122.137327,37.733517],[-122.137406,37.733428],[-122.137486,37.73334],[-122.137578,37.733241],[-122.13762,37.733195],[-122.137669,37.733155],[-122.137711,37.733127]],"gtype":"LineString"},{"id":"r24","row":24,"cluster":"Marlow","sid":"0805","sec":"001","street":"DANBURY ST","frm":"REVERE AV","to":"ROXBURY AV","miles":0.08146590909090909,"len":430.14,"wid":30.0,"area":11280.0,"fc":"R","ln":"2","pci21":"28","adaC":null,"adaN":"2","gis":"0805-001","pci24":15,"flag":null,"drawn":430,"coords":[[-122.136755,37.736104],[-122.136752,37.736055],[-122.136751,37.736006],[-122.136753,37.735957],[-122.136757,37.735907],[-122.136763,37.735859],[-122.136772,37.73581],[-122.136783,37.735761],[-122.136798,37.735713],[-122.136814,37.735666],[-122.136832,37.735619],[-122.136854,37.735573],[-122.136877,37.735527],[-122.136902,37.735482],[-122.13693,37.735438],[-122.136959,37.735395],[-122.136991,37.735352],[-122.137026,37.735311],[-122.137061,37.735271],[-122.137099,37.735232],[-122.137139,37.735195],[-122.137182,37.735158],[-122.137224,37.735123],[-122.13727,37.73509],[-122.137316,37.735057]],"gtype":"LineString"},{"id":"r26","row":26,"cluster":"Calmar","sid":"0633","sec":"001","street":"CALMAR AV","frm":"PALOMA","to":"MANDANA AV","miles":0.29734848484848486,"len":1570.0,"wid":26.0,"area":40820.0,"fc":"R","ln":"2","pci21":"20","adaC":null,"adaN":"4","gis":"0633-001","pci24":19,"flag":null,"drawn":1608,"coords":[[-122.239508,37.810459],[-122.23938,37.811065],[-122.239347,37.811251],[-122.2393,37.811389],[-122.239249,37.811448],[-122.239199,37.811507],[-122.239146,37.811566],[-122.239092,37.811624],[-122.239071,37.811654],[-122.239052,37.811685],[-122.239037,37.811718],[-122.239023,37.811751],[-122.239011,37.811785],[-122.239003,37.811819],[-122.238997,37.811854],[-122.238995,37.811888],[-122.238989,37.811928],[-122.238979,37.811967],[-122.23897,37.812006],[-122.238955,37.812044],[-122.23894,37.812082],[-122.23892,37.812119],[-122.238897,37.812147],[-122.238872,37.812174],[-122.238844,37.812199],[-122.238816,37.812224],[-122.238785,37.812247],[-122.238753,37.812269],[-122.238718,37.812289],[-122.238684,37.812308],[-122.238648,37.812326],[-122.238612,37.812342],[-122.238575,37.812356],[-122.238535,37.812369],[-122.238489,37.812382],[-122.23844,37.812393],[-122.238392,37.812402],[-122.238344,37.812411],[-122.238296,37.812416],[-122.238245,37.812421],[-122.238195,37.812423],[-122.238145,37.812424],[-122.238095,37.812423],[-122.238045,37.81242],[-122.237925,37.812398],[-122.237805,37.812375],[-122.237685,37.812349],[-122.237566,37.812322],[-122.237517,37.812308],[-122.237467,37.812294],[-122.237418,37.812282],[-122.237366,37.812271],[-122.237316,37.812262],[-122.237265,37.812254],[-122.237213,37.812247],[-122.237161,37.812242],[-122.237109,37.812238],[-122.237057,37.812235],[-122.237005,37.812235],[-122.236955,37.812236],[-122.236903,37.812239],[-122.236853,37.812244],[-122.236803,37.812251],[-122.236753,37.812259],[-122.236739,37.812262],[-122.236705,37.812269],[-122.236656,37.812281],[-122.236608,37.812295],[-122.23656,37.812311],[-122.236516,37.812328],[-122.236471,37.812347],[-122.236426,37.812366],[-122.236384,37.812387],[-122.236341,37.812409],[-122.2363,37.812432],[-122.236259,37.812456],[-122.23622,37.81248],[-122.236172,37.812522],[-122.236125,37.812564],[-122.236074,37.812603],[-122.236023,37.812643],[-122.23597,37.81268],[-122.235915,37.812716]],"gtype":"LineString"},{"id":"r27","row":27,"cluster":"Calmar","sid":"1748","sec":"001","street":"PALOMA AV","frm":"BALFOUR AV","to":"MANDANA AV","miles":0.20494886363636367,"len":1082.13,"wid":26.0,"area":27300.0,"fc":"R","ln":"2","pci21":"23","adaC":null,"adaN":"7","gis":"1748-001","pci24":22,"flag":null,"drawn":1082,"coords":[[-122.234901,37.810861],[-122.234972,37.810944],[-122.235287,37.811542],[-122.235492,37.811925],[-122.235774,37.812451],[-122.235915,37.812716],[-122.235911,37.812748],[-122.235906,37.81278],[-122.235905,37.812811],[-122.235906,37.812842],[-122.235909,37.812874],[-122.235913,37.812905],[-122.235919,37.812937],[-122.235926,37.812968],[-122.235948,37.813015],[-122.235972,37.813061],[-122.235995,37.813107],[-122.236022,37.813152],[-122.236055,37.813209],[-122.236087,37.813265],[-122.236118,37.813322],[-122.236147,37.81338],[-122.236176,37.813438],[-122.236204,37.813496],[-122.236229,37.813554],[-122.236255,37.813612]],"gtype":"LineString"},{"id":"r28","row":28,"cluster":"Calmar","sid":"1940","sec":"001","street":"SANTA RAY AV","frm":"BALFOUR","to":"CARLSTON AV","miles":0.6117424242424242,"len":3230.0,"wid":19.0,"area":61370.0,"fc":"R","ln":"2","pci21":"46","adaC":null,"adaN":"10","gis":"1940-001","pci24":42,"flag":"Balfour Av isn't in the City layer; cut point placed 3,230 ft from Carlston per your sheet length \u2014 verify in field.","drawn":3230,"coords":[[-122.240355,37.811605],[-122.240338,37.811581],[-122.240316,37.811556],[-122.240293,37.81153],[-122.240267,37.811507],[-122.24024,37.811485],[-122.24021,37.811464],[-122.24018,37.811444],[-122.240147,37.811426],[-122.240114,37.81141],[-122.240082,37.811396],[-122.240051,37.811382],[-122.240018,37.811371],[-122.239983,37.811361],[-122.239948,37.811354],[-122.239913,37.811347],[-122.239877,37.811343],[-122.239841,37.81134],[-122.239804,37.811339],[-122.239768,37.81134],[-122.239733,37.811343],[-122.239697,37.811348],[-122.239659,37.811361],[-122.239621,37.811371],[-122.239582,37.81138],[-122.239542,37.811388],[-122.239502,37.811393],[-122.239463,37.811396],[-122.239421,37.811397],[-122.239381,37.811396],[-122.23934,37.811393],[-122.2393,37.811389],[-122.239249,37.811358],[-122.239195,37.811328],[-122.23914,37.811301],[-122.239084,37.811275],[-122.239027,37.811251],[-122.238969,37.811229],[-122.238932,37.811217],[-122.238894,37.811207],[-122.238856,37.811199],[-122.238816,37.811192],[-122.238777,37.811187],[-122.238738,37.811183],[-122.238698,37.81118],[-122.238658,37.81118],[-122.238618,37.811181],[-122.238578,37.811183],[-122.238454,37.811199],[-122.23833,37.811217],[-122.238206,37.811238],[-122.238082,37.811259],[-122.238018,37.811264],[-122.237954,37.811268],[-122.237888,37.811271],[-122.237824,37.811273],[-122.23776,37.811274],[-122.237694,37.811274],[-122.237654,37.811271],[-122.237613,37.811271],[-122.237571,37.811273],[-122.23753,37.811275],[-122.237488,37.811279],[-122.237449,37.811285],[-122.237407,37.811292],[-122.237368,37.811301],[-122.237328,37.811311],[-122.23729,37.811322],[-122.237244,37.81133],[-122.237195,37.811336],[-122.237147,37.81134],[-122.2371,37.811343],[-122.237052,37.811343],[-122.237003,37.811343],[-122.236956,37.811341],[-122.236908,37.811336],[-122.236821,37.81133],[-122.236733,37.811323],[-122.236717,37.811323],[-122.236644,37.811319],[-122.236558,37.811314],[-122.236469,37.811311],[-122.236381,37.811309],[-122.236314,37.811312],[-122.236246,37.811315],[-122.236179,37.811321],[-122.236113,37.811328],[-122.236046,37.811338],[-122.23598,37.811348],[-122.235915,37.81136],[-122.235849,37.811373],[-122.235779,37.81139],[-122.235706,37.811409],[-122.235634,37.811427],[-122.235564,37.811448],[-122.235493,37.811469],[-122.235425,37.811492],[-122.235356,37.811517],[-122.235287,37.811542],[-122.235492,37.811925],[-122.235457,37.811936],[-122.235421,37.811948],[-122.235385,37.811959],[-122.235349,37.811967],[-122.235311,37.811974],[-122.235275,37.811979],[-122.235237,37.811981],[-122.235199,37.811983],[-122.235161,37.811981],[-122.235123,37.811978],[-122.235076,37.811976],[-122.235013,37.811978],[-122.234953,37.811985],[-122.234886,37.812],[-122.234838,37.812015],[-122.234785,37.812036],[-122.234737,37.812062],[-122.234684,37.812102],[-122.23446,37.812289],[-122.234429,37.812312],[-122.234385,37.812341],[-122.234335,37.812365],[-122.23427,37.812387],[-122.234225,37.812394],[-122.234182,37.812401],[-122.234139,37.812405],[-122.234094,37.812409],[-122.234049,37.812411],[-122.234006,37.812411],[-122.233701,37.81243],[-122.233667,37.812433],[-122.233631,37.812437],[-122.233596,37.812441],[-122.233562,37.812447],[-122.233367,37.812478],[-122.23333,37.812482],[-122.233292,37.812484],[-122.233256,37.812486],[-122.233218,37.812485],[-122.233066,37.81248],[-122.233015,37.81248],[-122.232967,37.812482],[-122.232917,37.812486],[-122.232868,37.812493],[-122.232818,37.812501],[-122.23277,37.812511],[-122.232724,37.812523],[-122.232677,37.812537],[-122.23264,37.812551],[-122.2326,37.812563],[-122.232561,37.812574],[-122.232519,37.812584],[-122.23248,37.812592],[-122.232438,37.812599],[-122.232397,37.812604],[-122.232355,37.812609],[-122.232307,37.812611],[-122.232258,37.812613],[-122.232212,37.812613],[-122.232163,37.812611],[-122.232115,37.812607],[-122.232068,37.812603],[-122.232024,37.812596],[-122.231981,37.812592],[-122.231936,37.812587],[-122.231893,37.812584],[-122.231847,37.812582],[-122.231804,37.81258],[-122.231747,37.812583],[-122.231688,37.812586],[-122.231631,37.81259],[-122.231574,37.812595],[-122.230628,37.812684],[-122.230593,37.812694],[-122.230561,37.812705],[-122.230528,37.812717],[-122.230495,37.81273],[-122.230463,37.812744],[-122.230432,37.812759]],"gtype":"LineString"},{"id":"r29","row":29,"cluster":"Calmar","sid":"0633","sec":"001","street":"CALMAR AV","frm":"CARLSTON AV","to":"PALOMA","miles":0.2746212121212121,"len":1450.0,"wid":26.0,"area":37700.0,"fc":"R","ln":"2","pci21":"20","adaC":null,"adaN":"4","gis":"0633-001","pci24":19,"flag":null,"drawn":1510,"coords":[[-122.235915,37.812716],[-122.235084,37.812984],[-122.234476,37.813189],[-122.234421,37.813208],[-122.234364,37.813224],[-122.234307,37.813239],[-122.23425,37.813252],[-122.234192,37.813262],[-122.234133,37.813272],[-122.234074,37.813279],[-122.234016,37.813285],[-122.233955,37.813288],[-122.233896,37.81329],[-122.233838,37.81329],[-122.233779,37.813288],[-122.231785,37.81332],[-122.231728,37.813322],[-122.231671,37.813323],[-122.231615,37.813321],[-122.231558,37.813319],[-122.231503,37.813315],[-122.231445,37.813309],[-122.23139,37.813301],[-122.231334,37.813293],[-122.231254,37.813274],[-122.231174,37.813255],[-122.231096,37.813234],[-122.231017,37.813211],[-122.230939,37.813186],[-122.230857,37.813159]],"gtype":"LineString"},{"id":"r30","row":30,"cluster":"Calmar","sid":"0660","sec":"002","street":"CARLSTON AV","frm":"MANDANA BV","to":"WALAVISTA AV","miles":0.169375,"len":894.3,"wid":23.0,"area":19964.0,"fc":"R","ln":"2","pci21":"16","adaC":"4","adaN":"2","gis":"0660-002","pci24":19,"flag":null,"drawn":894,"coords":[[-122.229692,37.812203],[-122.229747,37.812245],[-122.229801,37.812286],[-122.229856,37.812327],[-122.229912,37.812366],[-122.229967,37.812407],[-122.230021,37.812447],[-122.230078,37.812486],[-122.230132,37.812524],[-122.230203,37.812575],[-122.23027,37.812627],[-122.230338,37.81268],[-122.230404,37.812735],[-122.230432,37.812759],[-122.230469,37.81279],[-122.230531,37.812847],[-122.230593,37.812904],[-122.230655,37.812963],[-122.230692,37.812996],[-122.230731,37.813029],[-122.230766,37.813064],[-122.230802,37.8131],[-122.230836,37.813136],[-122.230857,37.813159],[-122.230864,37.813167],[-122.230898,37.813211],[-122.230926,37.81325],[-122.23098,37.813314],[-122.231032,37.813379],[-122.231083,37.813444],[-122.231133,37.813509],[-122.23118,37.813575],[-122.231226,37.813642],[-122.231273,37.813708],[-122.231316,37.813776],[-122.231442,37.813993],[-122.231459,37.814043],[-122.231481,37.814085],[-122.23152,37.81413],[-122.231529,37.814145]],"gtype":"LineString"},{"id":"r31","row":31,"cluster":"Calmar","sid":"1897","sec":"002","street":"ROSAL AV","frm":"LAKESHORE AV","to":"BALFOUR AV","miles":0.06605871212121213,"len":348.79,"wid":25.0,"area":7850.0,"fc":"R","ln":"2","pci21":"16","adaC":"2","adaN":"2","gis":"1897-002","pci24":9,"flag":null,"drawn":349,"coords":[[-122.239238,37.81406],[-122.239195,37.814017],[-122.239151,37.813977],[-122.239107,37.813938],[-122.239059,37.813901],[-122.239012,37.813866],[-122.238961,37.813831],[-122.23891,37.813798],[-122.238855,37.813768],[-122.238801,37.813738],[-122.238745,37.813711],[-122.238629,37.813656],[-122.238512,37.813602],[-122.238395,37.813548],[-122.238276,37.813495]],"gtype":"LineString"},{"id":"r32","row":32,"cluster":"Calmar","sid":"1897","sec":"003","street":"ROSAL AV","frm":"BALFOUR AV","to":"BALFOUR AV","miles":0.14623106060606061,"len":772.1,"wid":25.0,"area":19050.0,"fc":"R","ln":"2","pci21":"40","adaC":null,"adaN":"4","gis":"1897-003","pci24":29,"flag":null,"drawn":772,"coords":[[-122.238276,37.813495],[-122.238216,37.813468],[-122.237364,37.813082],[-122.237189,37.813004],[-122.237123,37.812984],[-122.237067,37.812977],[-122.237012,37.812977],[-122.236957,37.812985],[-122.236904,37.813001],[-122.236856,37.813023],[-122.236818,37.813048],[-122.236779,37.813085],[-122.236754,37.813123],[-122.236739,37.813164],[-122.236732,37.813206],[-122.236736,37.813248],[-122.236749,37.81329],[-122.236764,37.813319],[-122.236789,37.813341],[-122.236812,37.813363],[-122.236833,37.813387],[-122.236853,37.813412],[-122.236869,37.813437],[-122.236885,37.813464],[-122.236899,37.81349],[-122.23691,37.813518],[-122.236921,37.813546],[-122.236931,37.81358],[-122.236937,37.813631],[-122.236935,37.813676],[-122.236922,37.813721],[-122.236906,37.813754],[-122.236879,37.813792]],"gtype":"LineString"},{"id":"r34","row":34,"cluster":"Chapman","sid":"0117","sec":"001","street":"29 AV","frm":"E 7 ST","to":"FORD ST","miles":0.1012651515151515,"len":534.68,"wid":26.0,"area":11830.0,"fc":"R","ln":"2","pci21":"85","adaC":"4","adaN":null,"gis":"0117-001","pci24":55,"flag":null,"drawn":535,"coords":[[-122.234872,37.773393],[-122.234813,37.773411],[-122.234779,37.77343],[-122.234253,37.773941],[-122.234243,37.773962],[-122.234232,37.773984],[-122.234218,37.774005],[-122.234205,37.774026],[-122.23419,37.774046],[-122.234173,37.774065],[-122.23372,37.774528]],"gtype":"LineString"},{"id":"r35","row":35,"cluster":"Chapman","sid":"0116","sec":"0045","street":"29 AV","frm":"GLASCOCK ST","to":"FORD ST","miles":0.04715909090909091,"len":249.0,"wid":45.0,"area":11205.0,"fc":"A","ln":"4","pci21":"78","adaC":"5","adaN":null,"gis":"0116-0045","pci24":56,"flag":null,"drawn":260,"coords":[[-122.235383,37.772811],[-122.234966,37.773254],[-122.234939,37.773282],[-122.234914,37.77331],[-122.234892,37.773339],[-122.234864,37.773379],[-122.234859,37.773388]],"gtype":"LineString"},{"id":"r36","row":36,"cluster":"Chapman","sid":"0826","sec":"001","street":"DERBY AV","frm":"ELMWOOD AV","to":"E 7 ST","miles":0.04012310606060606,"len":211.85,"wid":40.0,"area":7000.0,"fc":"C","ln":"2","pci21":"18","adaC":null,"adaN":"4","gis":"0826-001","pci24":6,"flag":null,"drawn":212,"coords":[[-122.230818,37.773262],[-122.230467,37.773773]],"gtype":"LineString"},{"id":"r37","row":37,"cluster":"Chapman","sid":"0826","sec":"002","street":"DERBY AV","frm":"E 7 ST","to":"CHAPMAN ST","miles":0.04940909090909091,"len":260.88,"wid":40.0,"area":9760.0,"fc":"C","ln":"2","pci21":"27","adaC":"4","adaN":"2","gis":"0826-002","pci24":19,"flag":null,"drawn":261,"coords":[[-122.23125,37.772633],[-122.230818,37.773262]],"gtype":"LineString"},{"id":"r38","row":38,"cluster":"Chapman","sid":"1094","sec":"001","street":"FORD ST","frm":"DERBY","to":"PETERSON ST","miles":0.11363636363636363,"len":600.0,"wid":32.0,"area":19200.0,"fc":"C","ln":"2","pci21":"59","adaC":"4","adaN":"1","gis":"1094-001","pci24":43,"flag":null,"drawn":620,"coords":[[-122.233562,37.772822],[-122.231678,37.772006],[-122.231678,37.772006]],"gtype":"LineString"},{"id":"r39","row":39,"cluster":"Chapman","sid":"1136","sec":"001","street":"GLASCOCK ST","frm":"29 AV","to":"PETERSON ST","miles":0.08814393939393939,"len":465.4,"wid":36.0,"area":15192.0,"fc":"C","ln":"2","pci21":"85","adaC":"4","adaN":null,"gis":"1136-001","pci24":82,"flag":null,"drawn":465,"coords":[[-122.235396,37.772816],[-122.23438,37.772365],[-122.233991,37.772192]],"gtype":"LineString"},{"id":"r40","row":40,"cluster":"Chapman","sid":"1136","sec":"002","street":"GLASCOCK ST","frm":"PETERSON ST","to":"DERBY ST","miles":0.11680113636363637,"len":616.71,"wid":36.0,"area":14976.0,"fc":"C","ln":"2","pci21":"84","adaC":"3","adaN":null,"gis":"1136-002","pci24":78,"flag":null,"drawn":617,"coords":[[-122.233991,37.772192],[-122.233276,37.771883],[-122.233276,37.771883],[-122.232309,37.771465],[-122.232117,37.771382]],"gtype":"LineString"},{"id":"r41","row":41,"cluster":"Chapman","sid":"1412","sec":"001","street":"LANCASTER ST","frm":"WEST END","to":"GLASCOCK ST","miles":0.048501893939393935,"len":256.09,"wid":32.0,"area":5824.0,"fc":"C","ln":"2","pci21":"20","adaC":null,"adaN":null,"gis":"1412-001","pci24":16,"flag":null,"drawn":256,"coords":[[-122.231105,37.770143],[-122.230669,37.770755]],"gtype":"LineString"},{"id":"r42","row":42,"cluster":"Chapman","sid":"0826","sec":"004","street":"DERBY AV","frm":"GLASCOCK ST","to":"WEST END","miles":0.054193181818181814,"len":286.14,"wid":56.0,"area":13664.0,"fc":"C","ln":"2","pci21":"27","adaC":"1","adaN":null,"gis":"0826-004","pci24":13,"flag":null,"drawn":286,"coords":[[-122.232584,37.770689],[-122.232136,37.771354],[-122.232117,37.771382]],"gtype":"LineString"},{"id":"r43","row":43,"cluster":"Chapman","sid":null,"sec":null,"street":"29 AV","frm":"BRIDGE","to":"FORD ST","miles":0.04715909090909091,"len":249.0,"wid":45.0,"area":11205.0,"fc":"A","ln":"4","pci21":null,"adaC":null,"adaN":"0","gis":"0116-006","pci24":83,"flag":"No ID in sheet. Tentatively matched to 0116-006 (29 Av, Ford St\u2192bridge). Same length/attributes as row 35 \u2014 possible duplicate.","drawn":455,"coords":[[-122.234857,37.773392],[-122.234827,37.773449],[-122.234803,37.773515],[-122.234777,37.77358],[-122.234744,37.773642],[-122.234713,37.773687],[-122.234678,37.773729],[-122.234629,37.773781],[-122.234004,37.774428]],"gtype":"LineString"},{"id":"r44","row":44,"cluster":"Chapman","sid":"1094","sec":"001","street":"FORD ST","frm":"LANCASTER ST","to":"DERBY","miles":0.09252462121212121,"len":488.53,"wid":32.0,"area":33888.0,"fc":"C","ln":"2","pci21":"59","adaC":"4","adaN":"1","gis":"1094-001","pci24":43,"flag":null,"drawn":468,"coords":[[-122.231678,37.772006],[-122.230498,37.771492],[-122.230259,37.771387]],"gtype":"LineString"},{"id":"r45","row":45,"cluster":"Chapman","sid":"0954","sec":"003","street":"E 7 ST","frm":"29 AV","to":"FRUITVALE AV","miles":0.33173484848484847,"len":1751.56,"wid":32.0,"area":51424.0,"fc":"C","ln":"2","pci21":"39","adaC":"12","adaN":"1","gis":"0954-003","pci24":30,"flag":null,"drawn":1752,"coords":[[-122.23372,37.774528],[-122.23269,37.774076],[-122.230818,37.773262],[-122.229394,37.772646],[-122.228404,37.772217]],"gtype":"LineString"}],"ctx":[{"k":"1738-002","n":"OUTLOOK AV","t":"LineString","c":[[-122.176911,37.776149],[-122.176614,37.775873],[-122.175481,37.775182],[-122.175317,37.775086],[-122.174707,37.774714],[-122.174316,37.77448],[-122.174264,37.774442],[-122.1742,37.774387],[-122.174144,37.774328],[-122.174095,37.774264],[-122.174055,37.774196],[-122.174023,37.774126],[-122.174001,37.774054],[-122.173807,37.77341],[-122.173532,37.772953],[-122.173148,37.772314],[-122.173117,37.772265],[-122.173078,37.772231]]},{"k":"1897-001","n":"ROSAL AV","t":"LineString","c":[[-122.241525,37.815493],[-122.241444,37.815422],[-122.241363,37.81535],[-122.241287,37.815282],[-122.241283,37.815278],[-122.241204,37.815206],[-122.241124,37.815134],[-122.241044,37.815062],[-122.240965,37.81499],[-122.240885,37.814919],[-122.240807,37.814847],[-122.240728,37.814776],[-122.24065,37.814705],[-122.240572,37.814634],[-122.240553,37.814611],[-122.240536,37.814585],[-122.240522,37.81456],[-122.240509,37.814534],[-122.240498,37.814506],[-122.240491,37.814479],[-122.240485,37.814451],[-122.24048,37.814417],[-122.240483,37.81436],[-122.240475,37.814312],[-122.240458,37.814263],[-122.240434,37.814218],[-122.240413,37.814185],[-122.240067,37.813691],[-122.239968,37.813584]]},{"k":"0300-300","n":"73RD AV","t":"LineString","c":[[-122.179381,37.76426],[-122.179147,37.764407],[-122.178445,37.764871],[-122.177742,37.765315],[-122.177611,37.765399],[-122.177558,37.765431],[-122.177507,37.765463],[-122.177458,37.765498],[-122.17741,37.765533],[-122.177364,37.765569],[-122.177318,37.765607],[-122.177274,37.765646],[-122.177233,37.765686],[-122.177193,37.765727],[-122.177154,37.765769],[-122.176997,37.765927],[-122.176956,37.765973],[-122.176914,37.766016],[-122.17687,37.766059],[-122.176822,37.766101],[-122.176775,37.766141],[-122.176724,37.76618],[-122.176673,37.766217],[-122.17662,37.766252],[-122.176334,37.766438],[-122.175798,37.766788],[-122.175658,37.76688],[-122.174149,37.76786],[-122.173453,37.768301],[-122.173428,37.768318],[-122.172429,37.768957],[-122.172355,37.769002],[-122.172275,37.769042],[-122.172192,37.769076],[-122.172106,37.769104],[-122.172038,37.769121]]},{"k":"0116-003","n":"29TH AV","t":"LineString","c":[[-122.232514,37.775967],[-122.232531,37.77596],[-122.232513,37.776012],[-122.232233,37.776337]]},{"k":"0300-100","n":"73RD AV","t":"MultiLineString","c":[[[-122.187058,37.759184],[-122.187007,37.75924],[-122.186956,37.759296],[-122.186902,37.75935],[-122.186848,37.759403],[-122.186792,37.759456],[-122.186733,37.759507],[-122.186673,37.759556],[-122.186612,37.759605],[-122.186549,37.759652],[-122.186485,37.759698],[-122.186418,37.759742],[-122.186352,37.759786],[-122.184654,37.760881],[-122.184193,37.761175],[-122.183791,37.761433],[-122.183654,37.761521],[-122.182843,37.762046],[-122.18257,37.762215],[-122.181973,37.762608]],[[-122.181941,37.762629],[-122.181298,37.763029],[-122.181139,37.763132],[-122.180426,37.763588]]]},{"k":"0300-200A","n":"73RD AV (EB)","t":"LineString","c":[[-122.180426,37.763588],[-122.180429,37.763676],[-122.180386,37.763705],[-122.180385,37.763706],[-122.17986,37.764038],[-122.179477,37.764286],[-122.179381,37.76426]]},{"k":"1748-002","n":"PALOMA AV","t":"LineString","c":[[-122.234432,37.811249],[-122.234287,37.811135],[-122.234243,37.811104],[-122.234199,37.811074],[-122.234152,37.811045],[-122.234105,37.811017],[-122.234056,37.810992],[-122.234005,37.810967],[-122.233954,37.810945],[-122.233902,37.810923],[-122.233624,37.810831],[-122.233586,37.81082],[-122.233548,37.810806],[-122.233511,37.810793],[-122.233474,37.810777],[-122.233437,37.810761],[-122.233404,37.810743],[-122.233371,37.810723],[-122.233337,37.810703],[-122.233306,37.810682],[-122.233276,37.810659],[-122.233214,37.810608],[-122.233154,37.810556],[-122.233094,37.810503],[-122.233037,37.810449],[-122.23298,37.810393],[-122.232927,37.810336],[-122.232781,37.810154],[-122.232566,37.809917],[-122.23255,37.809898]]},{"k":"0116-005","n":"29TH AV","t":"LineString","c":[[-122.23655,37.771717],[-122.236446,37.771838],[-122.236206,37.772125]]},{"k":"0300-500","n":"73RD AV","t":"LineString","c":[[-122.169989,37.77074],[-122.169954,37.77078],[-122.169918,37.77082],[-122.169886,37.770861],[-122.169856,37.770902],[-122.169826,37.770944],[-122.169799,37.770987],[-122.169773,37.77103],[-122.169749,37.771074],[-122.169726,37.771118],[-122.169706,37.771163],[-122.169069,37.772377],[-122.169041,37.772432],[-122.168982,37.772535],[-122.168959,37.772574],[-122.168944,37.772614],[-122.16893,37.77267],[-122.168925,37.772726],[-122.168933,37.772793],[-122.168943,37.772847],[-122.168955,37.7729],[-122.16897,37.772952],[-122.168986,37.773005],[-122.169005,37.773057],[-122.169027,37.773108],[-122.169049,37.773158],[-122.169071,37.773205],[-122.169096,37.77325],[-122.169121,37.773296],[-122.16915,37.77334],[-122.169178,37.773384],[-122.16921,37.773427],[-122.169834,37.774238]]},{"k":"1136-001","n":"GLASCOCK ST","t":"LineString","c":[[-122.235396,37.772816],[-122.23438,37.772365],[-122.233991,37.772192]]},{"k":"1094-001","n":"FORD ST","t":"LineString","c":[[-122.233562,37.772822],[-122.231678,37.772006],[-122.231678,37.772006],[-122.230498,37.771492],[-122.230259,37.771387]]},{"k":"1400-001","n":"LAIRD AV","t":"LineString","c":[[-122.17566,37.77357],[-122.174593,37.77252]]},{"k":"1136-002","n":"GLASCOCK ST","t":"MultiLineString","c":[[[-122.233991,37.772192],[-122.233276,37.771883]],[[-122.233276,37.771883],[-122.232309,37.771465],[-122.232117,37.771382]]]},{"k":"0287-001","n":"69TH AV","t":"LineString","c":[[-122.175968,37.769638],[-122.175776,37.770463],[-122.175759,37.770515],[-122.175704,37.770573],[-122.175438,37.770743],[-122.174075,37.77162],[-122.17351,37.771966],[-122.173078,37.772231]]},{"k":"0286-001","n":"68TH AV","t":"MultiLineString","c":[[[-122.191113,37.761119],[-122.189001,37.762484]],[[-122.189286,37.762779],[-122.18627,37.764718],[-122.184234,37.766027],[-122.183763,37.766329],[-122.183335,37.766604],[-122.183213,37.766683],[-122.180866,37.768184],[-122.180179,37.768624],[-122.18003,37.768715],[-122.178768,37.769534],[-122.178705,37.76959],[-122.178651,37.76965],[-122.178602,37.769714],[-122.178563,37.769781],[-122.178538,37.769833],[-122.17852,37.769887],[-122.178504,37.769942],[-122.178498,37.769978]]]},{"k":"1738-005","n":"PARKER AV","t":"LineString","c":[[-122.166305,37.768211],[-122.166249,37.768237],[-122.166183,37.768243],[-122.165907,37.768121],[-122.165857,37.768107],[-122.165793,37.768106],[-122.165715,37.768132],[-122.165664,37.768174],[-122.165645,37.768205],[-122.165634,37.768325],[-122.165587,37.768332],[-122.165548,37.768333],[-122.165509,37.76833],[-122.165471,37.768323],[-122.165435,37.768311],[-122.165401,37.768295],[-122.165348,37.768269],[-122.165307,37.768247],[-122.165268,37.768223],[-122.165231,37.768198],[-122.165198,37.768169],[-122.164987,37.767967],[-122.164492,37.767491],[-122.164378,37.76695],[-122.164343,37.766789],[-122.164048,37.766428],[-122.163741,37.766072]]},{"k":"0300-400","n":"73RD AV","t":"LineString","c":[[-122.172038,37.769121],[-122.171616,37.769373],[-122.171541,37.769419],[-122.171468,37.769467],[-122.171394,37.769516],[-122.171324,37.769566],[-122.171255,37.769617],[-122.171185,37.769669],[-122.171119,37.769722],[-122.171052,37.769776],[-122.170988,37.769831],[-122.170923,37.769888],[-122.169989,37.77074]]},{"k":"0117-001","n":"29TH AV","t":"LineString","c":[[-122.234872,37.773393],[-122.234813,37.773411],[-122.234779,37.77343],[-122.234253,37.773941],[-122.234243,37.773962],[-122.234232,37.773984],[-122.234218,37.774005],[-122.234205,37.774026],[-122.23419,37.774046],[-122.234173,37.774065],[-122.23372,37.774528]]},{"k":"0116-004","n":"29TH AV","t":"LineString","c":[[-122.236206,37.772125],[-122.236148,37.772176],[-122.23609,37.772227],[-122.236029,37.772275],[-122.235966,37.772322],[-122.235901,37.772367],[-122.235835,37.772411],[-122.235808,37.772432],[-122.235777,37.772455],[-122.235719,37.772501],[-122.235663,37.772547],[-122.235609,37.772596],[-122.235557,37.772645],[-122.235508,37.772695],[-122.235396,37.772816]]},{"k":"1738-003","n":"OUTLOOK AV","t":"LineString","c":[[-122.173078,37.772231],[-122.172467,37.771908],[-122.172215,37.771775],[-122.172166,37.771749],[-122.172117,37.771725],[-122.172065,37.771703],[-122.172012,37.771682],[-122.171958,37.771663],[-122.171904,37.771646],[-122.171848,37.771631],[-122.171793,37.771617],[-122.171395,37.771544],[-122.171334,37.77153],[-122.171275,37.771514],[-122.171217,37.771496],[-122.17116,37.771477],[-122.171102,37.771456],[-122.171046,37.771433],[-122.170992,37.771409],[-122.17094,37.771382],[-122.170887,37.771355],[-122.170838,37.771325],[-122.170789,37.771294],[-122.170741,37.771261],[-122.169989,37.77074],[-122.169063,37.770112],[-122.168975,37.770043]]},{"k":"1412-002","n":"LANCASTER ST","t":"LineString","c":[[-122.230669,37.770755],[-122.230259,37.771387]]},{"k":"1412-003","n":"LANCASTER ST","t":"LineString","c":[[-122.230259,37.771387],[-122.230184,37.771496],[-122.229829,37.772013]]},{"k":"0116-002","n":"29TH AV","t":"MultiLineString","c":[[[-122.232233,37.776337],[-122.232209,37.776361],[-122.232172,37.776394],[-122.232119,37.776437],[-122.232062,37.776475],[-122.232017,37.776502],[-122.231756,37.776674],[-122.2317,37.776716],[-122.231644,37.776757],[-122.231576,37.776793]],[[-122.232077,37.776223],[-122.232056,37.776242],[-122.231755,37.776553],[-122.231576,37.776793]],[[-122.231576,37.776793],[-122.231528,37.776837],[-122.231396,37.776972],[-122.23031,37.778092]]]},{"k":"0954-001","n":"E 7TH ST","t":"LineString","c":[[-122.237403,37.775473],[-122.236271,37.775571]]},{"k":"1412-004","n":"LANCASTER ST","t":"LineString","c":[[-122.229829,37.772013],[-122.229394,37.772646],[-122.22902,37.773181],[-122.228953,37.773267]]},{"k":"1738-004","n":"OUTLOOK AV","t":"LineString","c":[[-122.168975,37.770043],[-122.167882,37.769294],[-122.167183,37.768813],[-122.166891,37.768608],[-122.166747,37.768507],[-122.166527,37.768352],[-122.166305,37.768211]]},{"k":"1940-001","n":"SANTA RAY AV","t":"MultiLineString","c":[[[-122.241046,37.812766],[-122.240679,37.812485],[-122.240298,37.812168],[-122.24032,37.812146],[-122.240338,37.812122],[-122.240357,37.812098],[-122.240374,37.812072],[-122.240387,37.812047],[-122.240398,37.81202],[-122.24041,37.811993],[-122.240416,37.811965],[-122.240422,37.811938],[-122.240425,37.81191],[-122.24043,37.811883],[-122.240431,37.811855],[-122.240432,37.811827],[-122.240429,37.811799],[-122.240425,37.811771],[-122.24042,37.811744],[-122.24041,37.811716],[-122.240401,37.811689],[-122.240388,37.811662],[-122.240375,37.811636],[-122.240357,37.811608],[-122.240338,37.811581],[-122.240316,37.811556],[-122.240293,37.81153],[-122.240267,37.811507],[-122.24024,37.811485],[-122.24021,37.811464],[-122.24018,37.811444],[-122.240147,37.811426],[-122.240114,37.81141],[-122.240082,37.811396],[-122.240051,37.811382],[-122.240018,37.811371],[-122.239983,37.811361],[-122.239948,37.811354],[-122.239913,37.811347],[-122.239877,37.811343],[-122.239841,37.81134],[-122.239804,37.811339],[-122.239768,37.81134],[-122.239733,37.811343],[-122.239697,37.811348],[-122.239659,37.811361],[-122.239621,37.811371],[-122.239582,37.81138],[-122.239542,37.811388],[-122.239502,37.811393],[-122.239463,37.811396],[-122.239421,37.811397],[-122.239381,37.811396],[-122.23934,37.811393],[-122.2393,37.811389],[-122.239249,37.811358],[-122.239195,37.811328],[-122.23914,37.811301],[-122.239084,37.811275],[-122.239027,37.811251],[-122.238969,37.811229],[-122.238932,37.811217],[-122.238894,37.811207],[-122.238856,37.811199],[-122.238816,37.811192],[-122.238777,37.811187],[-122.238738,37.811183],[-122.238698,37.81118],[-122.238658,37.81118],[-122.238618,37.811181],[-122.238578,37.811183],[-122.238454,37.811199],[-122.23833,37.811217],[-122.238206,37.811238],[-122.238082,37.811259],[-122.238018,37.811264],[-122.237954,37.811268],[-122.237888,37.811271],[-122.237824,37.811273],[-122.23776,37.811274],[-122.237694,37.811274],[-122.237654,37.811271],[-122.237613,37.811271],[-122.237571,37.811273],[-122.23753,37.811275],[-122.237488,37.811279],[-122.237449,37.811285],[-122.237407,37.811292],[-122.237368,37.811301],[-122.237328,37.811311],[-122.23729,37.811322],[-122.237244,37.81133],[-122.237195,37.811336],[-122.237147,37.81134],[-122.2371,37.811343],[-122.237052,37.811343],[-122.237003,37.811343],[-122.236956,37.811341],[-122.236908,37.811336],[-122.236821,37.81133],[-122.236733,37.811323],[-122.236717,37.811323],[-122.236644,37.811319],[-122.236558,37.811314],[-122.236469,37.811311],[-122.236381,37.811309],[-122.236314,37.811312],[-122.236246,37.811315],[-122.236179,37.811321],[-122.236113,37.811328],[-122.236046,37.811338],[-122.23598,37.811348],[-122.235915,37.81136],[-122.235849,37.811373],[-122.235779,37.81139],[-122.235706,37.811409],[-122.235634,37.811427],[-122.235564,37.811448],[-122.235493,37.811469],[-122.235425,37.811492],[-122.235356,37.811517],[-122.235287,37.811542]],[[-122.235492,37.811925],[-122.235457,37.811936],[-122.235421,37.811948],[-122.235385,37.811959],[-122.235349,37.811967],[-122.235311,37.811974],[-122.235275,37.811979],[-122.235237,37.811981],[-122.235199,37.811983],[-122.235161,37.811981],[-122.235123,37.811978],[-122.235076,37.811976],[-122.235013,37.811978],[-122.234953,37.811985],[-122.234886,37.812],[-122.234838,37.812015],[-122.234785,37.812036],[-122.234737,37.812062],[-122.234684,37.812102],[-122.23446,37.812289],[-122.234429,37.812312],[-122.234385,37.812341],[-122.234335,37.812365],[-122.23427,37.812387],[-122.234225,37.812394],[-122.234182,37.812401],[-122.234139,37.812405],[-122.234094,37.812409],[-122.234049,37.812411],[-122.234006,37.812411],[-122.233701,37.81243],[-122.233667,37.812433],[-122.233631,37.812437],[-122.233596,37.812441],[-122.233562,37.812447],[-122.233367,37.812478],[-122.23333,37.812482],[-122.233292,37.812484],[-122.233256,37.812486],[-122.233218,37.812485],[-122.233066,37.81248],[-122.233015,37.81248],[-122.232967,37.812482],[-122.232917,37.812486],[-122.232868,37.812493],[-122.232818,37.812501],[-122.23277,37.812511],[-122.232724,37.812523],[-122.232677,37.812537],[-122.23264,37.812551],[-122.2326,37.812563],[-122.232561,37.812574],[-122.232519,37.812584],[-122.23248,37.812592],[-122.232438,37.812599],[-122.232397,37.812604],[-122.232355,37.812609],[-122.232307,37.812611],[-122.232258,37.812613],[-122.232212,37.812613],[-122.232163,37.812611],[-122.232115,37.812607],[-122.232068,37.812603],[-122.232024,37.812596],[-122.231981,37.812592],[-122.231936,37.812587],[-122.231893,37.812584],[-122.231847,37.812582],[-122.231804,37.81258],[-122.231747,37.812583],[-122.231688,37.812586],[-122.231631,37.81259],[-122.231574,37.812595],[-122.230628,37.812684],[-122.230593,37.812694],[-122.230561,37.812705],[-122.230528,37.812717],[-122.230495,37.81273],[-122.230463,37.812744],[-122.230432,37.812759]]]},{"k":"0300-200B","n":"73RD AV (WB)","t":"LineString","c":[[-122.180426,37.763588],[-122.180324,37.763567],[-122.180276,37.763599],[-122.179751,37.763931],[-122.179751,37.763932],[-122.179375,37.764175],[-122.179381,37.76426]]},{"k":"0286-003","n":"68TH AV","t":"LineString","c":[[-122.176464,37.771241],[-122.174827,37.772296],[-122.174733,37.772357],[-122.174593,37.77252],[-122.173807,37.77341]]},{"k":"1738-001","n":"OUTLOOK AV","t":"LineString","c":[[-122.180563,37.779634],[-122.179972,37.779005],[-122.179937,37.778977],[-122.179662,37.778736],[-122.178632,37.777735],[-122.178103,37.777221],[-122.176911,37.776149]]},{"k":"2314-001","n":"FOOTHILL WY","t":"LineString","c":[[-122.138309,37.734798],[-122.13882,37.734347],[-122.138946,37.734236],[-122.138961,37.73419],[-122.138958,37.734135],[-122.138931,37.734085],[-122.138883,37.734043],[-122.138697,37.733918]]},{"k":"0116-001","n":"29TH AV","t":"LineString","c":[[-122.229125,37.779314],[-122.227504,37.780954],[-122.226697,37.781772]]},{"k":"0805-001","n":"DANBURY ST","t":"LineString","c":[[-122.136755,37.736104],[-122.136752,37.736055],[-122.136751,37.736006],[-122.136753,37.735957],[-122.136757,37.735907],[-122.136763,37.735859],[-122.136772,37.73581],[-122.136783,37.735761],[-122.136798,37.735713],[-122.136814,37.735666],[-122.136832,37.735619],[-122.136854,37.735573],[-122.136877,37.735527],[-122.136902,37.735482],[-122.13693,37.735438],[-122.136959,37.735395],[-122.136991,37.735352],[-122.137026,37.735311],[-122.137061,37.735271],[-122.137099,37.735232],[-122.137139,37.735195],[-122.137182,37.735158],[-122.137224,37.735123],[-122.13727,37.73509],[-122.137316,37.735057]]},{"k":"1865-002","n":"REVERE AV","t":"LineString","c":[[-122.138699,37.736202],[-122.138427,37.736202],[-122.138352,37.736216],[-122.138229,37.736222],[-122.138003,37.736236],[-122.137871,37.736238],[-122.137721,37.736233],[-122.13754,37.736205],[-122.137384,37.736173],[-122.137247,37.736149],[-122.137091,37.736123],[-122.136755,37.736104],[-122.136691,37.736114],[-122.136627,37.736124],[-122.136565,37.736137],[-122.136501,37.736151],[-122.13644,37.736167],[-122.136379,37.736185],[-122.136318,37.736204],[-122.136259,37.736224],[-122.136201,37.736247],[-122.136143,37.736271],[-122.136086,37.736296],[-122.13603,37.736323],[-122.135939,37.736373],[-122.13585,37.736425],[-122.135762,37.736478],[-122.135673,37.736532],[-122.135586,37.736587],[-122.135501,37.736643],[-122.135415,37.7367],[-122.135332,37.736757]]},{"k":"1897-003","n":"ROSAL AV","t":"LineString","c":[[-122.238276,37.813495],[-122.238216,37.813468],[-122.237364,37.813082],[-122.237189,37.813004],[-122.237123,37.812984],[-122.237067,37.812977],[-122.237012,37.812977],[-122.236957,37.812985],[-122.236904,37.813001],[-122.236856,37.813023],[-122.236818,37.813048],[-122.236779,37.813085],[-122.236754,37.813123],[-122.236739,37.813164],[-122.236732,37.813206],[-122.236736,37.813248],[-122.236749,37.81329],[-122.236764,37.813319],[-122.236789,37.813341],[-122.236812,37.813363],[-122.236833,37.813387],[-122.236853,37.813412],[-122.236869,37.813437],[-122.236885,37.813464],[-122.236899,37.81349],[-122.23691,37.813518],[-122.236921,37.813546],[-122.236931,37.81358],[-122.236937,37.813631],[-122.236935,37.813676],[-122.236922,37.813721],[-122.236906,37.813754],[-122.236879,37.813792]]},{"k":"1748-001","n":"PALOMA AV","t":"LineString","c":[[-122.234901,37.810861],[-122.234972,37.810944],[-122.235287,37.811542],[-122.235492,37.811925],[-122.235774,37.812451],[-122.235915,37.812716],[-122.235911,37.812748],[-122.235906,37.81278],[-122.235905,37.812811],[-122.235906,37.812842],[-122.235909,37.812874],[-122.235913,37.812905],[-122.235919,37.812937],[-122.235926,37.812968],[-122.235948,37.813015],[-122.235972,37.813061],[-122.235995,37.813107],[-122.236022,37.813152],[-122.236055,37.813209],[-122.236087,37.813265],[-122.236118,37.813322],[-122.236147,37.81338],[-122.236176,37.813438],[-122.236204,37.813496],[-122.236229,37.813554],[-122.236255,37.813612]]},{"k":"0660-001","n":"CARLSTON AV","t":"LineString","c":[[-122.231848,37.809941],[-122.231897,37.809968],[-122.231945,37.809997],[-122.23199,37.810028],[-122.232034,37.81006],[-122.232075,37.810094],[-122.232116,37.810129],[-122.23216,37.810162],[-122.232204,37.810197],[-122.232244,37.810233],[-122.232289,37.810271],[-122.232321,37.810309],[-122.232356,37.810349],[-122.23239,37.81039],[-122.232422,37.810432],[-122.232451,37.810474],[-122.232478,37.810518],[-122.232628,37.810733],[-122.232648,37.810771],[-122.232667,37.810823],[-122.232679,37.810883],[-122.232673,37.810921],[-122.232656,37.81096],[-122.232628,37.810996],[-122.232592,37.811027],[-122.232549,37.81105],[-122.232487,37.811071],[-122.232396,37.811084],[-122.232356,37.81109],[-122.232223,37.811108],[-122.232089,37.811125],[-122.231956,37.81114],[-122.231352,37.811217],[-122.231309,37.811222],[-122.231267,37.811227],[-122.231226,37.811235],[-122.231184,37.811243],[-122.231143,37.811253],[-122.231104,37.811265],[-122.231062,37.811278],[-122.231025,37.811292],[-122.230987,37.811308],[-122.230946,37.811325],[-122.230891,37.81135],[-122.230887,37.811352],[-122.230835,37.811384],[-122.230669,37.811479],[-122.230635,37.8115],[-122.230599,37.81152],[-122.230563,37.81154],[-122.230527,37.811558],[-122.230489,37.811576],[-122.230452,37.811593],[-122.230412,37.811607],[-122.230373,37.811621],[-122.230331,37.811633],[-122.230292,37.811644],[-122.23025,37.811654],[-122.230207,37.811664],[-122.229851,37.811745],[-122.229781,37.81177],[-122.229729,37.811797],[-122.229685,37.811831],[-122.229653,37.811865],[-122.229625,37.811911],[-122.229608,37.811956],[-122.229602,37.812002],[-122.229605,37.812048],[-122.229617,37.812093],[-122.229637,37.812136],[-122.229657,37.812167],[-122.229692,37.812203]]},{"k":"1094-002","n":"FORD ST","t":"LineString","c":[[-122.234872,37.773393],[-122.234739,37.773331],[-122.233562,37.772822]]},{"k":"1094-003","n":"FORD ST","t":"LineString","c":[[-122.235993,37.773764],[-122.235812,37.773792],[-122.235641,37.773734],[-122.235314,37.773586],[-122.234872,37.773393]]},{"k":"0586-001","n":"BROOKFIELD AV","t":"LineString","c":[[-122.138841,37.733609],[-122.138776,37.733605],[-122.138714,37.733597],[-122.138652,37.733588],[-122.138589,37.733576],[-122.138528,37.733563],[-122.138467,37.733548],[-122.138415,37.733535],[-122.138361,37.733522],[-122.138309,37.733506],[-122.138259,37.733489],[-122.138208,37.73347],[-122.138159,37.733449],[-122.138112,37.733427],[-122.138065,37.733404],[-122.138019,37.733379],[-122.137975,37.733352],[-122.137933,37.733324],[-122.137893,37.733294],[-122.137852,37.733263],[-122.137802,37.733219],[-122.137762,37.73318],[-122.137736,37.733154],[-122.137711,37.733127],[-122.137689,37.733082],[-122.137668,37.733037],[-122.137642,37.732993],[-122.137614,37.73295],[-122.137585,37.732907],[-122.137553,37.732866],[-122.137519,37.732825],[-122.137484,37.732786],[-122.137447,37.732748],[-122.137406,37.732711],[-122.137366,37.732675],[-122.137322,37.732641],[-122.137278,37.732608],[-122.13723,37.732576],[-122.137183,37.732546],[-122.137134,37.732518]]},{"k":"0954-002","n":"E 7TH ST","t":"LineString","c":[[-122.236271,37.775571],[-122.236057,37.775532],[-122.235878,37.775454],[-122.234214,37.774733],[-122.234202,37.774727],[-122.234192,37.77472],[-122.234183,37.774711],[-122.234176,37.774702],[-122.234172,37.774694]]},{"k":"0286-002","n":"68TH AV","t":"LineString","c":[[-122.176426,37.771222],[-122.177364,37.770024],[-122.177391,37.769981],[-122.177403,37.769927],[-122.177433,37.769845]]},{"k":"0660-002","n":"CARLSTON AV","t":"LineString","c":[[-122.229692,37.812203],[-122.229747,37.812245],[-122.229801,37.812286],[-122.229856,37.812327],[-122.229912,37.812366],[-122.229967,37.812407],[-122.230021,37.812447],[-122.230078,37.812486],[-122.230132,37.812524],[-122.230203,37.812575],[-122.23027,37.812627],[-122.230338,37.81268],[-122.230404,37.812735],[-122.230432,37.812759],[-122.230469,37.81279],[-122.230531,37.812847],[-122.230593,37.812904],[-122.230655,37.812963],[-122.230692,37.812996],[-122.230731,37.813029],[-122.230766,37.813064],[-122.230802,37.8131],[-122.230836,37.813136],[-122.230857,37.813159],[-122.230864,37.813167],[-122.230898,37.813211],[-122.230926,37.81325],[-122.23098,37.813314],[-122.231032,37.813379],[-122.231083,37.813444],[-122.231133,37.813509],[-122.23118,37.813575],[-122.231226,37.813642],[-122.231273,37.813708],[-122.231316,37.813776],[-122.231442,37.813993],[-122.231459,37.814043],[-122.231481,37.814085],[-122.23152,37.81413],[-122.231529,37.814145]]},{"k":"0954-003","n":"E 7TH ST","t":"LineString","c":[[-122.23372,37.774528],[-122.23269,37.774076],[-122.230818,37.773262],[-122.229394,37.772646],[-122.228404,37.772217]]},{"k":"1865-003","n":"REVERE AV","t":"LineString","c":[[-122.135278,37.736717],[-122.135224,37.73674],[-122.13518,37.736761],[-122.135111,37.736779],[-122.135021,37.736781],[-122.134964,37.736773],[-122.13491,37.736759],[-122.134858,37.736739],[-122.134792,37.736703],[-122.134434,37.736488],[-122.134361,37.736452],[-122.134285,37.736419],[-122.134226,37.736398],[-122.134161,37.736379],[-122.134097,37.73636],[-122.134033,37.73634],[-122.133953,37.736312],[-122.13389,37.736279],[-122.133832,37.736239],[-122.133783,37.736193],[-122.133741,37.736143],[-122.133716,37.736102],[-122.133696,37.736059],[-122.133681,37.736016],[-122.133673,37.735971],[-122.133669,37.735925],[-122.133672,37.73588],[-122.133696,37.735593],[-122.13369,37.73555],[-122.133676,37.735494],[-122.133659,37.735453],[-122.133636,37.735414],[-122.133609,37.735377],[-122.133577,37.735342],[-122.133528,37.7353],[-122.133472,37.735264],[-122.13341,37.735234],[-122.133345,37.735211],[-122.133275,37.735195],[-122.132884,37.735123],[-122.13283,37.73511],[-122.132776,37.735094],[-122.132723,37.735075],[-122.132673,37.735053],[-122.132609,37.73502],[-122.132564,37.734992],[-122.132161,37.734742],[-122.132121,37.734716],[-122.132079,37.734691],[-122.132035,37.734668],[-122.131991,37.734647],[-122.131946,37.734627],[-122.131899,37.734609],[-122.131852,37.734592],[-122.131803,37.734577],[-122.131754,37.734564],[-122.131704,37.734553],[-122.131653,37.734543],[-122.131603,37.734535],[-122.131141,37.734471],[-122.13106,37.734461],[-122.131006,37.734455],[-122.130942,37.73445],[-122.130883,37.734447],[-122.130806,37.734446],[-122.130678,37.734442],[-122.130612,37.734443],[-122.130545,37.73445],[-122.130483,37.734463],[-122.130424,37.734477],[-122.130371,37.734488],[-122.130318,37.73451],[-122.130265,37.734549],[-122.130195,37.73458],[-122.13013,37.73462],[-122.130065,37.734678],[-122.13002,37.734724],[-122.129972,37.734772],[-122.129928,37.73482]]},{"k":"0633-001","n":"CALMAR AV","t":"LineString","c":[[-122.239508,37.810459],[-122.23938,37.811065],[-122.239347,37.811251],[-122.2393,37.811389],[-122.239249,37.811448],[-122.239199,37.811507],[-122.239146,37.811566],[-122.239092,37.811624],[-122.239071,37.811654],[-122.239052,37.811685],[-122.239037,37.811718],[-122.239023,37.811751],[-122.239011,37.811785],[-122.239003,37.811819],[-122.238997,37.811854],[-122.238995,37.811888],[-122.238989,37.811928],[-122.238979,37.811967],[-122.23897,37.812006],[-122.238955,37.812044],[-122.23894,37.812082],[-122.23892,37.812119],[-122.238897,37.812147],[-122.238872,37.812174],[-122.238844,37.812199],[-122.238816,37.812224],[-122.238785,37.812247],[-122.238753,37.812269],[-122.238718,37.812289],[-122.238684,37.812308],[-122.238648,37.812326],[-122.238612,37.812342],[-122.238575,37.812356],[-122.238535,37.812369],[-122.238489,37.812382],[-122.23844,37.812393],[-122.238392,37.812402],[-122.238344,37.812411],[-122.238296,37.812416],[-122.238245,37.812421],[-122.238195,37.812423],[-122.238145,37.812424],[-122.238095,37.812423],[-122.238045,37.81242],[-122.237925,37.812398],[-122.237805,37.812375],[-122.237685,37.812349],[-122.237566,37.812322],[-122.237517,37.812308],[-122.237467,37.812294],[-122.237418,37.812282],[-122.237366,37.812271],[-122.237316,37.812262],[-122.237265,37.812254],[-122.237213,37.812247],[-122.237161,37.812242],[-122.237109,37.812238],[-122.237057,37.812235],[-122.237005,37.812235],[-122.236955,37.812236],[-122.236903,37.812239],[-122.236853,37.812244],[-122.236803,37.812251],[-122.236753,37.812259],[-122.236739,37.812262],[-122.236705,37.812269],[-122.236656,37.812281],[-122.236608,37.812295],[-122.23656,37.812311],[-122.236516,37.812328],[-122.236471,37.812347],[-122.236426,37.812366],[-122.236384,37.812387],[-122.236341,37.812409],[-122.2363,37.812432],[-122.236259,37.812456],[-122.23622,37.81248],[-122.236172,37.812522],[-122.236125,37.812564],[-122.236074,37.812603],[-122.236023,37.812643],[-122.23597,37.81268],[-122.235915,37.812716],[-122.235084,37.812984],[-122.234476,37.813189],[-122.234421,37.813208],[-122.234364,37.813224],[-122.234307,37.813239],[-122.23425,37.813252],[-122.234192,37.813262],[-122.234133,37.813272],[-122.234074,37.813279],[-122.234016,37.813285],[-122.233955,37.813288],[-122.233896,37.81329],[-122.233838,37.81329],[-122.233779,37.813288],[-122.231785,37.81332],[-122.231728,37.813322],[-122.231671,37.813323],[-122.231615,37.813321],[-122.231558,37.813319],[-122.231503,37.813315],[-122.231445,37.813309],[-122.23139,37.813301],[-122.231334,37.813293],[-122.231254,37.813274],[-122.231174,37.813255],[-122.231096,37.813234],[-122.231017,37.813211],[-122.230939,37.813186],[-122.230857,37.813159]]},{"k":"0826-004","n":"DERBY AV","t":"LineString","c":[[-122.232584,37.770689],[-122.232136,37.771354],[-122.232117,37.771382]]},{"k":"0826-002","n":"DERBY AV","t":"LineString","c":[[-122.23125,37.772633],[-122.230818,37.773262]]},{"k":"1550-002","n":"MARLOW DR","t":"LineString","c":[[-122.139416,37.734599],[-122.139337,37.734633],[-122.139281,37.734664],[-122.139228,37.734699],[-122.139192,37.734727],[-122.139144,37.734765],[-122.1391,37.734803],[-122.139056,37.734843],[-122.139016,37.734884],[-122.138977,37.734926],[-122.138938,37.734969],[-122.138903,37.735013],[-122.138869,37.735058],[-122.138844,37.735095],[-122.138822,37.735133],[-122.138801,37.735171],[-122.138782,37.73521],[-122.138764,37.73525],[-122.13875,37.73529],[-122.138737,37.735331],[-122.138727,37.735372],[-122.138718,37.735414],[-122.138712,37.735455],[-122.138707,37.735497],[-122.138705,37.735539],[-122.138712,37.735622],[-122.138716,37.735704],[-122.138719,37.735787],[-122.138719,37.73587],[-122.138718,37.735953],[-122.138712,37.736036],[-122.138707,37.736119],[-122.138699,37.736202]]},{"k":"1897-002","n":"ROSAL AV","t":"LineString","c":[[-122.239238,37.81406],[-122.239195,37.814017],[-122.239151,37.813977],[-122.239107,37.813938],[-122.239059,37.813901],[-122.239012,37.813866],[-122.238961,37.813831],[-122.23891,37.813798],[-122.238855,37.813768],[-122.238801,37.813738],[-122.238745,37.813711],[-122.238629,37.813656],[-122.238512,37.813602],[-122.238395,37.813548],[-122.238276,37.813495]]},{"k":"1865-001","n":"REVERE AV","t":"LineString","c":[[-122.139583,37.736204],[-122.138699,37.736202]]},{"k":"0768-001","n":"COVINGTON ST","t":"LineString","c":[[-122.139685,37.737307],[-122.139673,37.737088],[-122.13966,37.737039],[-122.139638,37.736998],[-122.13961,37.73696],[-122.139573,37.736926],[-122.13953,37.736897],[-122.139483,37.736874],[-122.139431,37.736858],[-122.139355,37.736846],[-122.138907,37.736854],[-122.138773,37.736876],[-122.138253,37.736987],[-122.138186,37.736999],[-122.138117,37.73701],[-122.138049,37.737019],[-122.137982,37.737027],[-122.137913,37.737033],[-122.137844,37.737037],[-122.137775,37.737039],[-122.137707,37.73704],[-122.137638,37.737038],[-122.137569,37.737036],[-122.137501,37.737031],[-122.137432,37.737025],[-122.137364,37.737017],[-122.137297,37.737007],[-122.137231,37.736996],[-122.137165,37.736983],[-122.1371,37.736968],[-122.137036,37.736951],[-122.136973,37.736932],[-122.136911,37.736912],[-122.136848,37.736889],[-122.136789,37.736866],[-122.136729,37.73684],[-122.136672,37.736813],[-122.136616,37.736786],[-122.136563,37.736758],[-122.136509,37.736729],[-122.136458,37.736698],[-122.136409,37.736667],[-122.13636,37.736633],[-122.136312,37.736599],[-122.136268,37.736562],[-122.136224,37.736525],[-122.136182,37.736487],[-122.136141,37.736447],[-122.136102,37.736407],[-122.136065,37.736365],[-122.13603,37.736323],[-122.13595,37.736225],[-122.135926,37.736189],[-122.135905,37.736152],[-122.135887,37.736115],[-122.135869,37.736077],[-122.135856,37.736038],[-122.135843,37.735999],[-122.135833,37.73596],[-122.135825,37.73592],[-122.135819,37.73588],[-122.135817,37.73584],[-122.135816,37.7358],[-122.135817,37.735759],[-122.135821,37.735719],[-122.135827,37.735679],[-122.135835,37.735639],[-122.135846,37.7356],[-122.135859,37.735561],[-122.135875,37.735523],[-122.135892,37.735485],[-122.135912,37.735448],[-122.135934,37.735411],[-122.135957,37.735376],[-122.136677,37.734377],[-122.136692,37.734355],[-122.136755,37.734258],[-122.136819,37.734162],[-122.136886,37.734067],[-122.136955,37.733973],[-122.137026,37.73388],[-122.137098,37.733788],[-122.137174,37.733697],[-122.13725,37.733607],[-122.137327,37.733517],[-122.137406,37.733428],[-122.137486,37.73334],[-122.137578,37.733241],[-122.13762,37.733195],[-122.137669,37.733155],[-122.137711,37.733127]]},{"k":"1550-003","n":"MARLOW DR","t":"LineString","c":[[-122.138699,37.736202],[-122.138691,37.736241],[-122.138685,37.73628],[-122.138681,37.736319],[-122.138678,37.736359],[-122.138677,37.736398],[-122.138678,37.736438],[-122.138681,37.736477],[-122.138685,37.736516],[-122.138691,37.736561],[-122.138699,37.736606],[-122.138709,37.73665],[-122.138718,37.736695],[-122.138731,37.736739],[-122.138744,37.736783],[-122.138759,37.736826],[-122.138773,37.736876],[-122.138848,37.73704],[-122.138872,37.737107],[-122.13889,37.737176],[-122.138896,37.737243],[-122.138887,37.737304],[-122.138869,37.737363],[-122.138841,37.73742],[-122.138813,37.73746],[-122.138782,37.737498],[-122.138745,37.737534],[-122.138705,37.737566],[-122.13866,37.737596],[-122.138597,37.737618],[-122.138533,37.737639],[-122.138467,37.737658],[-122.138401,37.737674],[-122.138325,37.737687],[-122.138249,37.737698],[-122.138172,37.737708],[-122.138096,37.737717],[-122.13802,37.737725],[-122.137942,37.737732],[-122.137866,37.737737],[-122.137789,37.737741],[-122.137706,37.73774],[-122.137624,37.737738],[-122.137543,37.737733],[-122.13746,37.737728],[-122.137378,37.73772],[-122.137297,37.737711],[-122.137215,37.7377],[-122.137134,37.737688],[-122.137061,37.737674],[-122.136988,37.73766],[-122.136913,37.737644],[-122.136842,37.737627],[-122.136769,37.737608],[-122.136697,37.737589],[-122.136628,37.737567],[-122.136558,37.737545],[-122.136488,37.737521],[-122.13642,37.737496],[-122.136361,37.737473],[-122.136302,37.737448],[-122.136244,37.737422],[-122.136188,37.737395],[-122.136132,37.737367],[-122.136078,37.737338],[-122.136024,37.737307],[-122.135971,37.737276],[-122.135917,37.737243],[-122.135862,37.737208],[-122.135808,37.737173],[-122.135757,37.737137],[-122.135704,37.7371],[-122.135655,37.737063],[-122.135606,37.737024],[-122.135558,37.736985],[-122.135511,37.736945],[-122.135465,37.736904],[-122.135431,37.736868],[-122.135398,37.736832],[-122.135364,37.736795],[-122.135332,37.736757],[-122.135278,37.736717],[-122.135236,37.736663],[-122.135191,37.736601],[-122.135151,37.736542],[-122.135122,37.736499],[-122.135097,37.736455],[-122.135074,37.73641],[-122.135052,37.736364],[-122.135032,37.736318],[-122.135013,37.736272],[-122.134997,37.736225],[-122.134984,37.736178],[-122.134972,37.736131],[-122.134959,37.736075],[-122.134947,37.736018],[-122.134941,37.735961],[-122.134934,37.735905],[-122.134931,37.735848],[-122.134932,37.73579],[-122.134934,37.735733],[-122.13494,37.735676],[-122.134947,37.735619],[-122.134958,37.735563],[-122.134971,37.735506],[-122.134987,37.735451],[-122.135005,37.735395],[-122.135026,37.73534],[-122.135049,37.735288],[-122.135072,37.735235],[-122.135098,37.735184],[-122.135127,37.735133],[-122.135157,37.735083],[-122.135188,37.735033],[-122.135222,37.734984],[-122.135257,37.734936],[-122.135657,37.734391],[-122.135934,37.734012],[-122.136427,37.733315],[-122.136476,37.733252],[-122.136523,37.733189],[-122.136571,37.733126],[-122.136622,37.733064],[-122.137134,37.732518],[-122.137297,37.732329],[-122.137348,37.732272],[-122.137402,37.732216],[-122.137456,37.732162],[-122.137514,37.732108],[-122.137573,37.732056],[-122.137634,37.732005],[-122.137697,37.731956],[-122.137762,37.731908],[-122.137827,37.731862],[-122.137895,37.731816],[-122.137934,37.731789],[-122.137973,37.731764],[-122.138014,37.731739],[-122.138057,37.731715],[-122.1381,37.731693],[-122.138142,37.731671],[-122.138187,37.731651],[-122.138233,37.731632]]},{"k":"0826-001","n":"DERBY AV","t":"LineString","c":[[-122.230818,37.773262],[-122.230467,37.773773]]},{"k":"0826-003","n":"DERBY AV","t":"MultiLineString","c":[[[-122.231678,37.772006],[-122.231678,37.772006],[-122.232057,37.771469],[-122.232117,37.771382]],[[-122.23125,37.772633],[-122.231678,37.772006]]]},{"k":"0116-006","n":"29 AV","t":"LineString","c":[[-122.234857,37.773392],[-122.234827,37.773449],[-122.234803,37.773515],[-122.234777,37.77358],[-122.234744,37.773642],[-122.234713,37.773687],[-122.234678,37.773729],[-122.234629,37.773781],[-122.234004,37.774428]]},{"k":"0116-007","n":"29 AV","t":"LineString","c":[[-122.234001,37.774431],[-122.23348,37.77497],[-122.233348,37.775105],[-122.233228,37.77523],[-122.233208,37.775251],[-122.232578,37.775898],[-122.232549,37.775925],[-122.232518,37.775955]]},{"k":"0954-0001","n":"E 7 ST","t":"LineString","c":[[-122.23739,37.775468],[-122.238741,37.775365]]},{"k":"0116-0045","n":"29 AV","t":"LineString","c":[[-122.235383,37.772811],[-122.234966,37.773254],[-122.234939,37.773282],[-122.234914,37.77331],[-122.234892,37.773339],[-122.234864,37.773379],[-122.234859,37.773388]]},{"k":"0297-003","n":"72 AV","t":"LineString","c":[[-122.173192,37.769661],[-122.172125,37.770356],[-122.172096,37.770375],[-122.172028,37.770421],[-122.170728,37.771256]]},{"k":"1616-001","n":"MIDDLETON ST","t":"LineString","c":[[-122.138869,37.735058],[-122.138682,37.734976],[-122.138382,37.734846],[-122.138309,37.734798],[-122.138267,37.734761],[-122.138222,37.734712],[-122.138187,37.734658],[-122.138161,37.734601],[-122.138149,37.734557],[-122.138142,37.734511],[-122.138143,37.734451],[-122.138151,37.734405],[-122.13817,37.734361],[-122.138199,37.734309],[-122.138227,37.734271],[-122.138261,37.734235],[-122.138312,37.734192],[-122.13837,37.734155],[-122.138438,37.73412],[-122.138497,37.734086],[-122.138552,37.734048],[-122.138605,37.734007],[-122.138653,37.733964],[-122.138697,37.733918],[-122.138719,37.73389],[-122.138748,37.733846],[-122.138781,37.733786],[-122.138809,37.733723],[-122.138829,37.733659],[-122.138841,37.733609],[-122.138864,37.733572],[-122.138879,37.733532],[-122.138884,37.733481],[-122.138888,37.733399],[-122.138888,37.733317],[-122.138884,37.733235],[-122.138881,37.733153],[-122.138874,37.733071],[-122.138863,37.73299],[-122.138844,37.732907],[-122.138825,37.732825],[-122.138802,37.732742],[-122.138778,37.73266],[-122.138752,37.732579],[-122.138724,37.732497],[-122.138697,37.732416],[-122.138665,37.732336],[-122.13864,37.732271],[-122.138611,37.732207],[-122.138578,37.732144],[-122.138546,37.732082],[-122.13851,37.73202],[-122.138472,37.73196],[-122.138431,37.7319],[-122.138388,37.731841],[-122.138365,37.731806],[-122.13834,37.73177],[-122.138315,37.731735],[-122.138288,37.7317],[-122.138262,37.731666],[-122.138233,37.731632]]},{"k":"0116-008","n":"29 AV","t":"LineString","c":[[-122.230188,37.778197],[-122.229112,37.779309]]},{"k":"1412-001","n":"LANCASTER ST","t":"LineString","c":[[-122.231105,37.770143],[-122.230669,37.770755]]},{"k":"1550-001","n":"MARLOW DR","t":"LineString","c":[[-122.139913,37.734502],[-122.139671,37.734535],[-122.139522,37.734554],[-122.139465,37.734572],[-122.139416,37.734599]]},{"k":"0297-001","n":"72ND AV","t":"LineString","c":[[-122.18823,37.759746],[-122.186042,37.761149],[-122.185372,37.761579]]},{"k":"0297-002","n":"72ND AV","t":"LineString","c":[[-122.194902,37.755122],[-122.193903,37.755763],[-122.193107,37.756274],[-122.191332,37.757414],[-122.189557,37.758549],[-122.189122,37.758834],[-122.187939,37.759599]]}]};
+const STORE_KEY = 'oak-ac-field-review-v1';
+
+const DISTRESSES = [
+  {code:'1',  name:'Alligator cracking', unit:'SF'},
+  {code:'2',  name:'Block cracking', unit:'SF'},
+  {code:'4',  name:'Longitudinal and transverse cracking', unit:'LF'},
+  {code:'7',  name:'Raveling', unit:'SF'},
+  {code:'RD', name:'Rutting and distortions', unit:'SF'},
+  {code:'PU', name:'Pumping', unit:'SF'}
+];
+const EXTENTS = ['<10%','10–25%','25–50%','>50%'];
+const TREATMENTS = [
+  {k:'SEAL', name:'Surface seal', sub:['RCS','SS','DSS']},
+  {k:'MO', name:'M&O'}, {k:'FDR', name:'FDR'}, {k:'SR', name:'SR'}
+];
+const CIVIL = [
+  {k:'roots', name:'Tree root distortions'},
+  {k:'acgutter', name:'AC over gutter pan'},
+  {k:'adaNon', name:'Non-compliant ADA'},
+  {k:'adaLack', name:'Lack of ADA ramps'},
+  {k:'cg', name:'Broken C&G'}
+];
+const CLUSTERS = ['Outlook','Marlow','Calmar','Chapman'];
+const SEGS = DATA.segs;
+const byId = Object.fromEntries(SEGS.map(s=>[s.id,s]));
+
+/* ---------- storage ---------- */
+let store = {};
+function loadStore(){ try{ store = JSON.parse(localStorage.getItem(STORE_KEY)||'{}') || {}; }catch(e){ store = {}; } }
+let storageOk = true;
+function saveStore(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); storageOk = true; }
+  catch(e){ storageOk = false; toast('This browser is blocking storage (private mode?). Save a backup before leaving.'); }
+}
+function rec(id){
+  if(!store[id]) store[id] = {d:{}, t:{}, seal:{}, cores:{reg:0,bulk:0}, civil:{}, notes:'', done:false, at:null};
+  return store[id];
+}
+function hasData(r){
+  if(!r) return false;
+  return Object.keys(r.d||{}).length || Object.values(r.t||{}).some(Boolean) || Object.values(r.civil||{}).some(Boolean)
+    || (r.cores&&(r.cores.reg||r.cores.bulk)) || (r.notes||'').trim();
+}
+function status(id){ const r = store[id]; if(r&&r.done) return 'done'; return hasData(r)?'prog':'none'; }
+const STATUS_TXT = {none:'Not started', prog:'In progress', done:'Reviewed'};
+function touch(id){ rec(id).at = new Date().toISOString(); saveStore(); refreshSeg(id); renderProgress(); showSaved(id); }
+
+/* ---------- formatting ---------- */
+const nf0 = new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
+const nf2 = new Intl.NumberFormat('en-US',{maximumFractionDigits:2});
+const title = s => (s||'').toLowerCase().replace(/\b([a-z])/g,(m,c)=>c.toUpperCase()).replace(/\bAv\b/g,'Av').replace(/\b(\d+) Av\b/g,'$1 Av').replace(/\bE (\d)/,'E $1');
+function dCode(code, sev){ return /^\d$/.test(code) ? code+(sev||'') : code+(sev?'-'+sev:''); }
+function distressSummary(r){
+  if(!r) return '';
+  return DISTRESSES.filter(x=>r.d[x.code]).map(x=>dCode(x.code, r.d[x.code].sev)).join(', ');
+}
+function treatSummary(r){
+  if(!r) return '';
+  return TREATMENTS.filter(t=>r.t[t.k]).map(t=>{
+    if(t.sub){ const s=t.sub.filter(x=>r.seal[x]); return s.length? 'Seal ('+s.join('/')+')' : 'Seal'; }
+    return t.name; }).join(', ');
+}
+
+/* ---------- map ---------- */
+const map = L.map('map',{zoomControl:true, attributionControl:true, preferCanvas:false, zoomSnap:0.5, tap:true, maxZoom:21});
+const roads = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:21, maxNativeZoom:19, attribution:'© OpenStreetMap contributors'});
+let basemap = 'streets';
+function setBasemap(){ roads.addTo(map).bringToBack(); ctxGroup.remove(); updateLabels(); renderLegend(); }
+map.attributionControl.setPrefix(false);
+(function(){ const pts=[]; SEGS.forEach(s=>{ if(!s.coords) return; (s.gtype==='MultiLineString'?s.coords.flat():s.coords).forEach(([x,y])=>pts.push([y,x])); });
+  map.fitBounds(L.latLngBounds(pts), {padding:[30,30]}); })();
+map.attributionControl.addAttribution('Segments: City of Oakland OakDOT');
+const css = getComputedStyle(document.documentElement);
+const cvar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+const ctxGroup = L.layerGroup();
+const labelGroup = L.layerGroup();
+const placed = [];
+DATA.ctx.forEach(c=>{
+  const parts = c.t==='MultiLineString' ? c.c : [c.c];
+  parts.forEach(p=>L.polyline(p.map(([x,y])=>[y,x]),{color:cvar('--ctx'), weight:4, interactive:false, lineCap:'round'}).addTo(ctxGroup));
+  const longest = parts.reduce((a,b)=>b.length>a.length?b:a,parts[0]);
+  const mid = longest[Math.floor(longest.length/2)];
+  const ll = L.latLng(mid[1],mid[0]);
+  const name = title(c.n.replace(/\s*\((EB|WB)\)/,''));
+  if(placed.some(q=>q.n===name && q.ll.distanceTo(ll)<350)) return;
+  placed.push({n:name,ll});
+  L.marker(ll,{interactive:false, keyboard:false, icon:L.divIcon({className:'', html:'<div class="ctx-label">'+name+'</div>', iconSize:[0,0]})}).addTo(labelGroup);
+});
+
+let colorMode = 'status';
+function pciColor(v){
+  if(v==null||v==='') return cvar('--st-none');
+  v=+v; if(v>=70) return cvar('--st-done'); if(v>=50) return '#C9A227'; if(v>=25) return '#D9731A'; return cvar('--sev-H');
+}
+function segColor(s){ return colorMode==='status' ? cvar({none:'--st-none',prog:'--st-prog',done:'--st-done'}[status(s.id)]) : pciColor(s.pci24); }
+
+const lines = {};
+SEGS.forEach(s=>{
+  if(!s.coords) return;
+  const ll = s.gtype==='MultiLineString' ? s.coords.map(p=>p.map(([x,y])=>[y,x])) : s.coords.map(([x,y])=>[y,x]);
+  const casing = L.polyline(ll,{color:cvar('--accent'), weight:17, opacity:0, interactive:false, lineCap:'round'}).addTo(map);
+  const halo = L.polyline(ll,{color:'#FFFFFF', weight:11, opacity:.9, interactive:false, lineCap:'round'}).addTo(map);
+  const vis = L.polyline(ll,{color:segColor(s), weight:7, opacity:1, interactive:false, lineCap:'round'}).addTo(map);
+  const hit = L.polyline(ll,{color:'#000', weight:28, opacity:0.001, interactive:true}).addTo(map);
+  hit.on('click',()=>openSeg(s.id));
+  hit.bindTooltip(()=>title(s.street)+': '+title(s.frm)+' to '+title(s.to),{sticky:true, direction:'top'});
+  lines[s.id] = {casing, halo, vis, hit};
+});
+function refreshSeg(id){ const L_=lines[id]; if(!L_) return; L_.vis.setStyle({color:segColor(byId[id])}); }
+function refreshAll(){ SEGS.forEach(s=>refreshSeg(s.id)); renderLegend(); }
+
+function updateLabels(){ if(basemap==='none' && map.getZoom()>=15) labelGroup.addTo(map); else labelGroup.remove(); }
+map.on('zoomend', updateLabels);
+
+let activeCluster = 'All';
+function clusterBounds(c){
+  const ls = SEGS.filter(s=>(c==='All'||s.cluster===c) && lines[s.id]).map(s=>lines[s.id].vis.getBounds());
+  return ls.reduce((a,b)=>a.extend(b), L.latLngBounds(ls[0].getSouthWest(), ls[0].getNorthEast()));
+}
+function fitPad(){ return window.innerWidth>=900 && sheetOpen ? {paddingTopLeft:[30,30], paddingBottomRight:[470,30]} : (sheetOpen? {paddingTopLeft:[30,30], paddingBottomRight:[30, Math.round(window.innerHeight*0.62)]} : {padding:[30,30]}); }
+function fitCluster(){ map.fitBounds(clusterBounds(activeCluster), Object.assign({maxZoom:17}, fitPad())); }
+
+/* ---------- legend, tabs, progress ---------- */
+function renderLegend(){
+  const el = document.getElementById('legend');
+  const rows = colorMode==='status'
+    ? [['--st-none','Not started'],['--st-prog','In progress'],['--st-done','Reviewed']].map(([v,t])=>`<div class="lg"><i style="background:${cvar(v)}"></i>${t}</div>`).join('')
+    : [[90,'70+ good'],[60,'50–69 at risk'],[30,'25–49 poor'],[10,'0–24 failed']].map(([v,t])=>`<div class="lg"><i style="background:${pciColor(v)}"></i>${t}</div>`).join('');
+  el.innerHTML = `<button id="btnColor" aria-label="Switch map coloring">${colorMode==='status'?'Color: review status':'Color: PCI 2024'}</button>${rows}`;
+  document.getElementById('btnColor').onclick = ()=>{ colorMode = colorMode==='status'?'pci':'status'; refreshAll(); };
+}
+function renderTabs(){
+  const el = document.getElementById('tabs');
+  el.innerHTML = ['All',...CLUSTERS].map(c=>{
+    const segs = SEGS.filter(s=>c==='All'||s.cluster===c);
+    const done = segs.filter(s=>status(s.id)==='done').length;
+    return `<button class="tab" data-c="${c}" aria-pressed="${c===activeCluster}">${c}<small>${done}/${segs.length}</small></button>`;
+  }).join('');
+  el.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{ activeCluster=b.dataset.c; renderTabs(); fitCluster(); });
+}
+function renderProgress(){
+  const done = SEGS.filter(s=>status(s.id)==='done').length;
+  const prog = SEGS.filter(s=>status(s.id)==='prog').length;
+  document.getElementById('progress').innerHTML = `<b>${done}</b>/${SEGS.length} reviewed${prog?`, ${prog} started`:''}`;
+  document.getElementById('meter').style.width = (100*done/SEGS.length)+'%';
+  renderTabs();
+}
+
+/* ---------- segment sheet ---------- */
+let current = null, sheetOpen = false, expanded = null;
+const sheet = document.getElementById('sheet'), mainEl = document.getElementById('main');
+function setSel(id){
+  Object.entries(lines).forEach(([k,v])=>{ v.casing.setStyle({opacity: k===id?1:0}); if(k===id){ v.casing.bringToFront(); v.halo.bringToFront(); v.vis.bringToFront(); v.hit.bringToFront(); } });
+}
+function orderList(){ return SEGS.filter(s=>activeCluster==='All'||s.cluster===activeCluster); }
+function openSeg(id){
+  current = id; expanded = null; sheetOpen = true;
+  sheet.classList.add('open'); mainEl.classList.add('with-sheet');
+  setSel(id); renderSheet();
+  setTimeout(()=>{ map.invalidateSize(); const l=lines[id]; if(l) map.fitBounds(l.vis.getBounds(), Object.assign({maxZoom:18}, fitPad())); }, 230);
+}
+function closeSheet(){
+  sheetOpen=false; current=null; sheet.classList.remove('open','tall'); mainEl.classList.remove('with-sheet'); setSel(null);
+  setTimeout(()=>map.invalidateSize(),230);
+}
+function step(dir){
+  const list = orderList(); let i = list.findIndex(s=>s.id===current);
+  if(i<0) i=0; else i=(i+dir+list.length)%list.length; openSeg(list[i].id);
+}
+function midpoint(s){ const l=lines[s.id]; if(!l) return null; const c=l.vis.getCenter(); return c; }
+
+function renderStatus(){
+  const st = status(current);
+  document.getElementById('shStatus').innerHTML = `<i style="background:${cvar({none:'--st-none',prog:'--st-prog',done:'--st-done'}[st])}"></i>${STATUS_TXT[st]}`;
+}
+function renderSheet(){
+  const s = byId[current], r = rec(current);
+  document.getElementById('shStreet').textContent = title(s.street);
+  document.getElementById('shLimits').textContent = title(s.frm)+' to '+title(s.to)+', '+s.cluster+' cluster';
+  renderStatus();
+  const m = midpoint(s);
+  const facts = [
+    ['Street / section', (s.sid||'—')+(s.sec?' / '+s.sec:'')],
+    ['Length', s.len? nf0.format(s.len)+' ft':'—'],
+    ['Width', s.wid? nf0.format(s.wid)+' ft':'—'],
+    ['Area', s.area? nf0.format(s.area)+' sf':'—'],
+    ['PCI 2021', s.pci21||'—'], ['PCI 2024', s.pci24??'—'],
+    ['FC / lanes', (s.fc||'—')+' / '+(s.ln||'—')],
+    ['ADA ramps', (s.adaC||0)+' ok, '+(s.adaN||0)+' non']
+  ];
+  const b = document.getElementById('shBody');
+  b.innerHTML = `
+    <dl class="facts">${facts.map(([k,v])=>`<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+    ${s.flag?`<div class="flag">${s.flag}</div>`:''}
+    ${m?`<a class="dirs" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=${m.lat.toFixed(6)},${m.lng.toFixed(6)}">Directions to this segment</a>`:''}
+
+    <section class="grp"><h3>Distresses <span id="dsum">${distressSummary(r)||'None recorded'}</span></h3>
+      ${DISTRESSES.map(x=>distressBlock(x,r)).join('')}
+    </section>
+
+    <section class="grp"><h3>Treatment <span>Pick one or more</span></h3>
+      <div class="chips">${TREATMENTS.map(t=>`<button class="chip" data-treat="${t.k}" aria-pressed="${!!r.t[t.k]}">${t.name}</button>`).join('')}</div>
+      ${r.t.SEAL?`<div class="subchips"><div class="lbl">Seal type</div><div class="chips">${TREATMENTS[0].sub.map(x=>`<button class="chip" data-seal="${x}" aria-pressed="${!!r.seal[x]}">${x}</button>`).join('')}</div></div>`:''}
+    </section>
+
+    <section class="grp"><h3>Cores <span>Optional</span></h3>
+      <div class="steppers">
+        ${[['reg','Regular'],['bulk','Bulk']].map(([k,n])=>`<div class="stepper"><div class="lbl">${n}</div><div class="row">
+          <button data-core="${k}" data-d="-1" aria-label="One fewer ${n.toLowerCase()} core">−</button>
+          <output id="core-${k}">${r.cores[k]||0}</output>
+          <button data-core="${k}" data-d="1" aria-label="One more ${n.toLowerCase()} core">+</button></div></div>`).join('')}
+      </div>
+    </section>
+
+    <section class="grp"><h3>Civil items <span>Pick any that apply</span></h3>
+      <div class="chips">${CIVIL.map(c=>`<button class="chip" data-civil="${c.k}" aria-pressed="${!!r.civil[c.k]}">${c.name}</button>`).join('')}</div>
+    </section>
+
+    <section class="grp"><h3>Notes</h3>
+      <textarea id="notes" placeholder="Anything to remember about this segment">${escapeHtml(r.notes||'')}</textarea>
+    </section>
+
+    <button class="donebtn ${r.done?'is-done':''}" id="btnDone">${r.done?'Reviewed. Tap to reopen':'Mark as reviewed'}</button>
+    <div class="saved" id="saved">${r.at?'Saved on this phone '+new Date(r.at).toLocaleString([], {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'}):''}</div>
+  `;
+  wireSheet();
+}
+function escapeHtml(t){ return t.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function distressBlock(x, r){
+  const d = r.d[x.code], on = !!d, open = on && expanded===x.code;
+  const sum = on ? [d.sev||'Severity?', d.ext].filter(Boolean).join(', ') : 'Tap to add';
+  return `<div class="dz ${on?'on':''}" data-dz="${x.code}">
+    <button class="dz-toggle" aria-expanded="${open}"><span class="code">${x.code}</span><span class="dz-name">${x.name}</span><span class="dz-sum ${on&&d.sev?d.sev:''}">${sum}</span></button>
+    ${open?`<div class="dz-body">
+      <div><div class="lbl">Severity</div><div class="sev">${['L','M','H'].map(v=>`<button data-v="${v}" aria-pressed="${d.sev===v}">${v}<small>${{L:'Low',M:'Medium',H:'High'}[v]}</small></button>`).join('')}</div></div>
+      <div><div class="lbl">Extent, share of segment area</div><div class="chips">${EXTENTS.map(e=>`<button class="chip" data-ext="${e}" aria-pressed="${d.ext===e}">${e}</button>`).join('')}</div></div>
+      <div><div class="lbl">Quantity estimate (optional)</div><div class="qty"><input type="text" inputmode="decimal" data-qty value="${d.qty??''}" aria-label="Quantity in ${x.unit}"> <span>${x.unit}</span></div></div>
+      <button class="linkbtn" data-remove>Remove this distress</button>
+    </div>`:''}
+  </div>`;
+}
+function wireSheet(){
+  const b = document.getElementById('shBody'), r = rec(current), id = current;
+  b.querySelectorAll('.dz').forEach(el=>{
+    const code = el.dataset.dz;
+    el.querySelector('.dz-toggle').onclick = ()=>{
+      if(!r.d[code]){ r.d[code] = {sev:null, ext:null, qty:null}; expanded = code; touch(id); }
+      else expanded = expanded===code ? null : code;
+      rerenderKeepScroll();
+    };
+    el.querySelectorAll('.sev button').forEach(btn=>btn.onclick=()=>{ const v=btn.dataset.v; r.d[code].sev = r.d[code].sev===v?null:v; touch(id); rerenderKeepScroll(); });
+    el.querySelectorAll('[data-ext]').forEach(btn=>btn.onclick=()=>{ const v=btn.dataset.ext; r.d[code].ext = r.d[code].ext===v?null:v; touch(id); rerenderKeepScroll(); });
+    const q = el.querySelector('[data-qty]'); if(q) q.oninput = ()=>{ const v=q.value.replace(/[^\d.]/g,''); r.d[code].qty = v===''?null:+v; touch(id); };
+    const rm = el.querySelector('[data-remove]'); if(rm) rm.onclick = ()=>{ delete r.d[code]; expanded=null; touch(id); rerenderKeepScroll(); };
+  });
+  b.querySelectorAll('[data-treat]').forEach(btn=>btn.onclick=()=>{ const k=btn.dataset.treat; r.t[k]=!r.t[k]; if(k==='SEAL'&&!r.t[k]) r.seal={}; touch(id); rerenderKeepScroll(); });
+  b.querySelectorAll('[data-seal]').forEach(btn=>btn.onclick=()=>{ const k=btn.dataset.seal; r.seal[k]=!r.seal[k]; touch(id); rerenderKeepScroll(); });
+  b.querySelectorAll('[data-core]').forEach(btn=>btn.onclick=()=>{ const k=btn.dataset.core; r.cores[k]=Math.max(0,(r.cores[k]||0)+(+btn.dataset.d)); document.getElementById('core-'+k).textContent=r.cores[k]; touch(id); renderStatus(); });
+  b.querySelectorAll('[data-civil]').forEach(btn=>btn.onclick=()=>{ const k=btn.dataset.civil; r.civil[k]=!r.civil[k]; btn.setAttribute('aria-pressed', !!r.civil[k]); touch(id); renderStatus(); });
+  const n = document.getElementById('notes'); n.oninput = ()=>{ r.notes = n.value; touch(id); renderStatus(); };
+  document.getElementById('btnDone').onclick = ()=>{ r.done = !r.done; touch(id); rerenderKeepScroll(); if(r.done) toast('Marked as reviewed'); };
+}
+function rerenderKeepScroll(){ const b=document.getElementById('shBody'); const y=b.scrollTop; renderSheet(); document.getElementById('shBody').scrollTop=y; }
+function showSaved(id){ if(id!==current) return; const el=document.getElementById('saved'); if(el) el.textContent = storageOk ? 'Saved on this phone '+new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}) : 'Not saved: this browser blocks storage'; renderStatus(); const ds=document.getElementById('dsum'); if(ds) ds.textContent = distressSummary(rec(id))||'None recorded'; }
+
+document.getElementById('btnClose').onclick = closeSheet;
+document.getElementById('btnPrev').onclick = ()=>step(-1);
+document.getElementById('btnNext').onclick = ()=>step(1);
+document.getElementById('grab').onclick = ()=>sheet.classList.toggle('tall');
+
+/* ---------- list ---------- */
+function openList(){
+  const el = document.getElementById('listBody');
+  el.innerHTML = CLUSTERS.map(c=>{
+    const segs = SEGS.filter(s=>s.cluster===c);
+    const done = segs.filter(s=>status(s.id)==='done').length;
+    return `<div class="cl-h">${c}<span>${done} of ${segs.length} reviewed</span></div>` + segs.map(s=>{
+      const st=status(s.id), r=store[s.id];
+      return `<button class="li" data-id="${s.id}"><i style="background:${cvar({none:'--st-none',prog:'--st-prog',done:'--st-done'}[st])}"></i>
+        <span class="t"><b>${title(s.street)}</b><span>${title(s.frm)} to ${title(s.to)}${s.sid?', '+s.sid+'-'+s.sec:''}${s.flag?', check note':''}</span></span>
+        <span class="s">${distressSummary(r)}</span></button>`;
+    }).join('');
+  }).join('');
+  el.querySelectorAll('.li').forEach(b=>b.onclick=()=>{ document.getElementById('listOv').classList.remove('open'); openSeg(b.dataset.id); });
+  document.getElementById('listOv').classList.add('open');
+}
+document.getElementById('btnList').onclick = openList;
+document.getElementById('btnMenu').onclick = ()=>document.getElementById('menuOv').classList.add('open');
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>document.getElementById(b.dataset.close).classList.remove('open'));
+
+/* ---------- location ---------- */
+let watchId = null, meMarker = null, meCircle = null, firstFix = true;
+document.getElementById('btnLocate').onclick = ()=>{
+  const btn = document.getElementById('btnLocate');
+  if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; btn.setAttribute('aria-pressed','false'); meMarker&&meMarker.remove(); meCircle&&meCircle.remove(); meMarker=meCircle=null; return; }
+  if(!('geolocation' in navigator)){ toast('Location isn’t available on this device.'); return; }
+  firstFix = true; btn.setAttribute('aria-pressed','true');
+  watchId = navigator.geolocation.watchPosition(p=>{
+    const ll=[p.coords.latitude,p.coords.longitude];
+    if(!meMarker){ meCircle=L.circle(ll,{radius:p.coords.accuracy, color:cvar('--st-prog'), weight:1, fillOpacity:.12, interactive:false}).addTo(map);
+      meMarker=L.circleMarker(ll,{radius:8, color:'#fff', weight:3, fillColor:cvar('--st-prog'), fillOpacity:1, interactive:false}).addTo(map); }
+    else { meMarker.setLatLng(ll); meCircle.setLatLng(ll).setRadius(p.coords.accuracy); }
+    if(firstFix){ map.setView(ll, Math.max(map.getZoom(),17)); firstFix=false; }
+  }, err=>{
+    btn.setAttribute('aria-pressed','false'); watchId=null;
+    toast(err.code===1 ? 'Location is blocked here. Allow location for this page, or open it in the browser.' : 'Couldn’t get a location fix. Try again in the open.');
+  }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+};
+document.getElementById('btnFit').onclick = fitCluster;
+
+/* ---------- export ---------- */
+function tableRows(){
+  const head = ['Cluster','Street ID','Section ID','Street Name','From','To','Miles in RFP','Length, ft','Width, ft','Area, sf','FC','#Ln','2021 PCI','ADA Compliant Curb Ramps','Non ADA Compliant Curb Ramps','PCI 2024 (City)','City section matched',
+    'Review status','Distress summary'];
+  DISTRESSES.forEach(x=>head.push(`${x.code} ${x.name} severity`, `${x.code} extent`, `${x.code} qty (${x.unit})`));
+  head.push('Treatments','Seal type','Cores regular','Cores bulk', ...CIVIL.map(c=>c.name), 'Notes','Last updated','Mapping note');
+  const rows = [head];
+  SEGS.forEach(s=>{
+    const r = store[s.id];
+    const row = [s.cluster, s.sid||'', s.sec||'', s.street, s.frm, s.to, s.miles!=null?+(+s.miles).toFixed(4):'', s.len!=null?+(+s.len).toFixed(2):'', s.wid??'', s.area!=null?+(+s.area).toFixed(0):'', s.fc||'', s.ln?+s.ln:'', s.pci21?+s.pci21:'', s.adaC?+s.adaC:'', s.adaN?+s.adaN:'', s.pci24??'', s.gis||'',
+      STATUS_TXT[status(s.id)], distressSummary(r)];
+    DISTRESSES.forEach(x=>{ const d=r&&r.d[x.code]; row.push(d?(d.sev||'—'):'', d?(d.ext||''):'', d&&d.qty!=null?d.qty:''); });
+    row.push(treatSummary(r), r? TREATMENTS[0].sub.filter(x=>r.seal[x]).join(', '):'',
+      r&&r.cores.reg?r.cores.reg:'', r&&r.cores.bulk?r.cores.bulk:'', ...CIVIL.map(c=>r&&r.civil[c.k]?'Y':''),
+      r?(r.notes||''):'', r&&r.at?new Date(r.at).toLocaleString():'', s.flag||'');
+    rows.push(row);
+  });
+  return rows;
+}
+const today = ()=>new Date().toISOString().slice(0,10);
+function saveFile(filename, data){
+  try{
+    const blob = data instanceof Blob ? data : new Blob([data], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 5000);
+    toast('Downloaded '+filename); return true;
+  }catch(e){ toast('Couldn’t download the file. Try “Copy table for Excel”.'); return false; }
+}
+document.getElementById('mXlsx').onclick = async ()=>{
+  if(!window.XLSX){ toast('The Excel library didn’t load. Check your connection and reload.'); return; }
+  const wb = XLSX.utils.book_new();
+  const rows = tableRows();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = rows[0].map((h,i)=>({wch: Math.min(40, Math.max(8, h.length+2, ...rows.slice(1).map(r=>String(r[i]??'').length+1)))}));
+  ws['!autofilter'] = {ref: XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:rows.length-1, c:rows[0].length-1}})};
+  XLSX.utils.book_append_sheet(wb, ws, 'Field Review');
+  const legend = [['Code','Distress','Quantity unit'], ...DISTRESSES.map(x=>[x.code,x.name,x.unit]), [], ['Severity','L = low, M = medium, H = high'], ['Extent','Share of the segment’s area: '+EXTENTS.join(', ')], [], ['Summary format','Code then severity, e.g. 4M = L&T cracking, medium; RD-H = rutting/distortions, high']];
+  const ws2 = XLSX.utils.aoa_to_sheet(legend); ws2['!cols']=[{wch:16},{wch:44},{wch:14}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Legend');
+  const buf = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+  saveFile(`Oakland_AC_Field_Review_${today()}.xlsx`, new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+};
+document.getElementById('mCopy').onclick = async ()=>{
+  const tsv = tableRows().map(r=>r.map(v=>String(v??'').replace(/[\t\n\r]+/g,' ')).join('\t')).join('\n');
+  try{ await navigator.clipboard.writeText(tsv); toast('Table copied. Paste it into Excel.'); }
+  catch(e){ const ta=document.createElement('textarea'); ta.value=tsv; document.body.appendChild(ta); ta.select(); let ok=false; try{ ok=document.execCommand('copy'); }catch(_){} ta.remove(); toast(ok?'Table copied. Paste it into Excel.':'Copy was blocked in this view.'); }
+};
+document.getElementById('mBackup').onclick = ()=>saveFile(`Oakland_AC_Field_Review_backup_${today()}.json`, JSON.stringify({app:'oak-ac-field-review', version:1, saved:new Date().toISOString(), store}, null, 1));
+document.getElementById('mRestore').onclick = ()=>document.getElementById('fileIn').click();
+document.getElementById('fileIn').onchange = async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{ const j = JSON.parse(await f.text()); if(!j || !j.store) throw 0;
+    if(!confirm('Replace the reviews on this phone with the backup from '+(j.saved?new Date(j.saved).toLocaleString():'that file')+'?')) return;
+    store = j.store; saveStore(); refreshAll(); renderProgress(); if(current) renderSheet(); toast('Backup restored');
+  }catch(_){ toast('That file isn’t a field review backup.'); }
+  e.target.value='';
+};
+document.getElementById('mClear').onclick = ()=>{
+  if(!confirm('Delete every review saved on this phone? This can’t be undone.')) return;
+  store = {}; saveStore(); refreshAll(); renderProgress(); if(current) renderSheet(); toast('All reviews cleared');
+};
+
+/* ---------- misc ---------- */
+let toastT;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2600); }
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{ location.reload(); });
+window.addEventListener('resize', ()=>map.invalidateSize());
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ if(document.querySelector('.overlay.open')) document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open')); else if(sheetOpen) closeSheet(); } });
+
+loadStore();
+setBasemap(); renderProgress(); refreshAll();
+map.fitBounds(clusterBounds('All'), {padding:[30,30]});
+updateLabels();
+</script>
+</body>
+</html>
